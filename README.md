@@ -1,0 +1,1 @@
+# airmaster-adapter-esp32
