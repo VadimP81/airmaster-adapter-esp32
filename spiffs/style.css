@@ -1,0 +1,128 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #f4f6f8;
+  margin: 0;
+  padding: 20px;
+}
+
+.card {
+  max-width: 420px;
+  margin: auto;
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.08);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+h1 {
+  font-size: 1.2em;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1em;
+  margin: 16px 0 8px;
+  color: #555;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.status {
+  font-weight: 600;
+}
+
+.ok { color: #2ecc71; }
+.warn { color: #f1c40f; }
+.err { color: #e74c3c; }
+.gray { color: #999; }
+
+footer {
+  margin-top: 16px;
+  text-align: right;
+}
+
+button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #3498db;
+  color: white;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2980b9;
+}
+
+/* Section box */
+.card h2 {
+  font-size: 0.95em;
+  margin-top: 20px;
+  color: #555;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 4px;
+}
+
+/* Inputs */
+input[type="text"], input[type="password"], input[type="number"] {
+  width: 100%;
+  padding: 6px 8px;
+  margin: 2px 0 6px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-size: 0.9em;
+}
+
+/* Tooltips */
+input[title] {
+  position: relative;
+}
+
+input[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 0.8em;
+  z-index: 10;
+}
+
+/* Disabled save button */
+button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 420px) {
+  .card {
+    padding: 12px;
+  }
+  button {
+    width: 48%;
+    margin-top: 8px;
+  }
+}

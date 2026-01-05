@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirMaster Gateway</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>AirMaster Gateway</h1>
+      <span id="version">v–</span>
+    </header>
+
+    <section>
+      <h2>Status</h2>
+      <div class="row">
+        <span>AM7 Sensor</span>
+        <span id="am7" class="status gray">Unknown</span>
+      </div>
+      <div class="row">
+        <span>MQTT Broker</span>
+        <span id="mqtt" class="status gray">Unknown</span>
+      </div>
+      <div class="row">
+        <span>Zigbee</span>
+        <span id="zigbee" class="status gray">Unknown</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <span>Last Update</span>
+        <span id="last">–</span>
+      </div>
+      <div class="row">
+        <span>Publish Interval</span>
+        <span id="interval">–</span>
+      </div>
+      <div class="row">
+        <span>Uptime</span>
+        <span id="uptime">–</span>
+      </div>
+    </section>
+
+    <footer>
+      <button onclick="location.href='/settings'">⚙ Settings</button>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
