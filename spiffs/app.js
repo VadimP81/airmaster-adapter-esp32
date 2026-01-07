@@ -12,18 +12,23 @@ function formatUptime(sec) {
 async function refresh() {
   try {
     const r = await fetch("/api/status");
+    if (!r.ok) {
+      console.error("Status fetch failed:", r.status);
+      return;
+    }
     const s = await r.json();
 
-    document.getElementById("version").textContent = "v" + s.version;
-    setStatus("am7", s.am7.connected, s.am7.connected ? "Online" : "Offline");
-    setStatus("mqtt", s.mqtt.connected, s.mqtt.connected ? "Connected" : "Disconnected");
-    setStatus("zigbee", s.zigbee.joined, s.zigbee.joined ? "Joined" : "Not joined");
+    document.getElementById("version").textContent = "v" + (s.version || "?");
+    setStatus("am7", s.am7?.connected, s.am7?.connected ? "Online" : "Offline");
+    setStatus("mqtt", s.mqtt?.connected, s.mqtt?.connected ? "Connected" : "Disconnected");
 
-    document.getElementById("last").textContent = s.am7.last_rx_sec + " sec ago";
-    document.getElementById("interval").textContent = s.interval + " sec";
-    document.getElementById("uptime").textContent = formatUptime(s.uptime);
+    document.getElementById("last").textContent = (s.am7?.last_rx_sec || 0) + " sec ago";
+    document.getElementById("interval").textContent = (s.interval || 0) + " sec";
+    document.getElementById("uptime").textContent = formatUptime(s.uptime || 0);
 
-  } catch(e) { console.log("Status fetch failed"); }
+  } catch(e) { 
+    console.error("Status fetch exception:", e);
+  }
 }
 
 setInterval(refresh, 2000);

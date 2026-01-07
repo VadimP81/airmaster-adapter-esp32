@@ -1,0 +1,7 @@
+# Partition Table for AirMaster Adapter ESP32-S3 (4MB flash) with OTA support
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 1280K,
+ota_0,    app,  ota_0,   ,        1280K,
+spiffs,   data, spiffs,  ,        0xF0000,

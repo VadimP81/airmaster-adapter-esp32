@@ -7,7 +7,9 @@ typedef struct {
     float humidity;
     int co2;
     int pm25;
-    float voc;
+    int pm10;
+    float tvoc;
+    float hcho;
 } am7_data_t;
 
 extern am7_data_t am7_data;
