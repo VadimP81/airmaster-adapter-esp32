@@ -34,13 +34,25 @@ h2 {
 
 .row {
   display: flex;
-  justify-content: space-between;
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
+  flex-direction: column;
+  padding: 8px 0;
+  margin-bottom: 8px;
 }
 
 .row:last-child {
   border-bottom: none;
+}
+
+.row label {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+.row.buttons {
+  flex-direction: row;
+  gap: 10px;
 }
 
 .status {
@@ -58,17 +70,27 @@ footer {
 }
 
 button {
-  padding: 8px 14px;
+  padding: 10px 16px;
   border: none;
   border-radius: 6px;
   background: #3498db;
   color: white;
   font-size: 0.9em;
   cursor: pointer;
+  font-weight: 500;
+  flex: 1;
 }
 
 button:hover {
   background: #2980b9;
+}
+
+button[type="button"] {
+  background: #95a5a6;
+}
+
+button[type="button"]:hover {
+  background: #7f8c8d;
 }
 
 /* Section box */
@@ -108,6 +130,25 @@ input[title]:hover::after {
   white-space: nowrap;
   font-size: 0.8em;
   z-index: 10;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.row.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.row.checkbox label {
+  margin: 0;
+  flex: 1;
 }
 
 /* Disabled save button */

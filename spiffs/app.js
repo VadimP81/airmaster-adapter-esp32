@@ -31,5 +31,15 @@ async function refresh() {
   }
 }
 
+function rebootDevice() {
+  if (confirm('Are you sure you want to reboot the device?')) {
+    fetch('/api/reboot', { method: 'POST' })
+      .then(() => {
+        alert('Device is rebooting... Please wait about 10 seconds.');
+      })
+      .catch(error => console.error('Error rebooting device:', error));
+  }
+}
+
 setInterval(refresh, 2000);
 refresh();

@@ -2,6 +2,13 @@
 build/
 sdkconfig
 sdkconfig.old
+*.bin
+*.elf
+*.map
+
+# Dependencies
+dependencies.lock
+managed_components/
 
 # Python
 __pycache__/
@@ -24,3 +31,6 @@ __pycache__/
 # Temporary files
 *.tmp
 *.bak
+
+# Documentation (optional - remove if you want to commit these)
+ESP32-S3_MIGRATION.md

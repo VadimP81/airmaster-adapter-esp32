@@ -18,8 +18,19 @@ void app_main(void)
 
     // Initialize WiFi
     wifi_init();
-    // TODO: Get WiFi credentials from settings
-    // wifi_connect(settings_get_wifi_ssid(), settings_get_wifi_password());
+    
+    // Check if WiFi credentials are configured
+    const char* ssid = settings_get_wifi_ssid();
+    if (ssid && strlen(ssid) > 0) {
+        ESP_LOGI(TAG, "WiFi credentials found, connecting to network...");
+        wifi_connect(ssid, settings_get_wifi_password());
+    } else {
+        ESP_LOGW(TAG, "No WiFi credentials configured.");
+        ESP_LOGI(TAG, "Starting Access Point mode for setup...");
+        ESP_LOGI(TAG, "Connect to WiFi: 'AirMaster-Setup' (no password)");
+        ESP_LOGI(TAG, "Then open http://192.168.4.1/ in your browser");
+        wifi_start_ap();
+    }
 
     // Start tasks
     xTaskCreate(am7_task, "am7_task", 4096, NULL, 5, NULL);

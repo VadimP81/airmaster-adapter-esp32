@@ -4,6 +4,10 @@
 #include "esp_app_format.h"
 #include <string.h>
 
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
 static const char *TAG = "OTA";
 
 static esp_ota_handle_t ota_handle = 0;

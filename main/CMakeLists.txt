@@ -17,8 +17,8 @@ idf_component_register(
         esp_wifi
         esp_netif
         mqtt
-        json
+        cjson
         spiffs
-        usb
+        esp_tinyusb
         app_update
 )

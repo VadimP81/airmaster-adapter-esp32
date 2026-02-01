@@ -2,6 +2,7 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include <string.h>
@@ -10,6 +11,11 @@ static const char *TAG = "WIFI";
 static EventGroupHandle_t wifi_event_group;
 static const int WIFI_CONNECTED_BIT = BIT0;
 static bool connected = false;
+static bool ap_mode = false;
+
+#define AP_SSID "AirMaster-Setup"
+#define AP_PASSWORD ""  // Open network
+#define AP_MAX_CONN 4
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                               int32_t event_id, void* event_data)
@@ -26,6 +32,14 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         connected = true;
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
+        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        ESP_LOGI(TAG, "Station " MACSTR " joined, AID=%d",
+                 MAC2STR(event->mac), event->aid);
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGI(TAG, "Station " MACSTR " left, AID=%d",
+                 MAC2STR(event->mac), event->aid);
     }
 }
 
@@ -54,7 +68,7 @@ void wifi_init(void)
                                                         &instance_got_ip));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    // Don't start WiFi here - let wifi_connect() or wifi_start_ap() do it
 
     ESP_LOGI(TAG, "WiFi initialization complete");
 }
@@ -82,7 +96,48 @@ esp_err_t wifi_connect(const char *ssid, const char *password)
                                          WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
 
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
     
     ESP_LOGI(TAG, "Connecting to WiFi SSID: %s", ssid);
     return esp_wifi_connect();
+}
+
+esp_err_t wifi_start_ap(void)
+{
+    ESP_LOGI(TAG, "Starting Access Point mode...");
+    
+    // Stop any existing WiFi
+    esp_wifi_stop();
+    
+    // Create AP network interface
+    esp_netif_create_default_wifi_ap();
+    
+    // Configure AP
+    wifi_config_t ap_config = {
+        .ap = {
+            .ssid = AP_SSID,
+            .ssid_len = strlen(AP_SSID),
+            .channel = 1,
+            .password = AP_PASSWORD,
+            .max_connection = AP_MAX_CONN,
+            .authmode = WIFI_AUTH_OPEN,
+            .pmf_cfg = {
+                .required = false,
+            },
+        },
+    };
+    
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    
+    ap_mode = true;
+    ESP_LOGI(TAG, "WiFi AP started. SSID: %s, IP: 192.168.4.1", AP_SSID);
+    
+    return ESP_OK;
+}
+
+bool wifi_is_ap_mode(void)
+{
+    return ap_mode;
 }

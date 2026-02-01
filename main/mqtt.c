@@ -5,7 +5,7 @@
 #include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_mqtt_client.h"
+#include "mqtt_client.h"
 #include "cJSON.h"
 #include <string.h>
 
@@ -116,7 +116,7 @@ bool mqtt_publish_ha_discovery(void)
         {"CO2", "co2", "{{ value_json.co2 }}", "ppm", "carbon_dioxide", "measurement"},
         {"PM2.5", "pm25", "{{ value_json.pm25 }}", "µg/m³", "pm25", "measurement"},
         {"PM10", "pm10", "{{ value_json.pm10 }}", "µg/m³", "pm10", "measurement"},
-        {"TVOC", "tvoc", "{{ value_json.tvoc }}", "ppb", "volatile_organic_compounds", "measurement"},
+        {"TVOC", "tvoc", "{{ value_json.tvoc }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"HCHO", "hcho", "{{ value_json.hcho }}", "mg/m³", "volatile_organic_compounds", "measurement"},
     };
 
@@ -196,9 +196,6 @@ void mqtt_task(void *arg)
         }
 
         if(mqtt_connected && am7_connected) {
-            char payload[256];
-            snprintf(payload, sizeof(payload),
-                     "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"voc\":%.2f}",
             // Send Home Assistant discovery on first connection
             if (!ha_discovery_sent && settings_get_ha_discovery_enabled()) {
                 mqtt_publish_ha_discovery();

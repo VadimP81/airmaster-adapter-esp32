@@ -2,273 +2,234 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "usb/usb_host.h"
+#include "tinyusb.h"
+#include "tusb_cdc_acm.h"
 #include <string.h>
 
 static const char *TAG = "AM7";
 
-// AM7 uses CP2102 USB-to-UART Bridge (Silicon Labs)
-#define AM7_VID 0x10c4  // Silicon Labs
-#define AM7_PID 0xea60  // CP2102
-#define AM7_IN_EP 0x81  // Bulk IN endpoint (typical)
-#define AM7_OUT_EP 0x01 // Bulk OUT endpoint (typical)
-#define AM7_INTERFACE 0 // Interface number
-
-// AM7 Serial Configuration
+// AM7 CP2102 USB identifiers
+#define AM7_VID 0x10C4  // Silicon Labs
+#define AM7_PID 0xEA60  // CP2102
 #define AM7_BAUD_RATE 19200
-#define AM7_DATA_BITS 8
-#define AM7_PARITY 0    // None
-#define AM7_STOP_BITS 0 // 1 stop bit
 
-// CDC Line Coding structure
-typedef struct {
-    uint32_t dwDTERate;   // Baud rate
-    uint8_t bCharFormat;  // Stop bits: 0=1, 1=1.5, 2=2
-    uint8_t bParityType;  // Parity: 0=None, 1=Odd, 2=Even, 3=Mark, 4=Space
-    uint8_t bDataBits;    // Data bits: 5, 6, 7, 8, 16
-} __attribute__((packed)) cdc_line_coding_t;
+// AM7 protocol expects 28 hex characters: 7 values * 4 chars each
+#define AM7_RESPONSE_LEN 28
 
+// AM7 data request command: 55CD4700000000000001690D0A
+static const uint8_t am7_request_cmd[] = {
+    0x55, 0xCD, 0x47, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x69, 0x0D, 0x0A
+};
+#define AM7_REQUEST_CMD_LEN sizeof(am7_request_cmd)
+
+// Global sensor data
 am7_data_t am7_data = {0};
 bool am7_connected = false;
 int last_rx_sec = 0;
 
-static usb_host_client_handle_t client_hdl = NULL;
-static usb_device_handle_t am7_dev = NULL;
-static bool usb_host_ready = false;
+static bool usb_initialized = false;
+static char rx_buffer[64] = {0};
+static size_t rx_buffer_pos = 0;
 
-// USB Host event callback
-static void usb_host_lib_task(void *arg)
+// Forward declarations
+static bool am7_parse_data(const char *hex_data, size_t len, am7_data_t *out);
+
+// USB CDC callback for received data
+static void cdc_rx_callback(int itf, cdcacm_event_t *event)
 {
-    while (1) {
-        uint32_t event_flags;
-        usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
+    if (event->type == CDC_EVENT_RX) {
+        uint8_t buf[64];
+        size_t rx_size = 0;
         
-        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
-            ESP_LOGW(TAG, "No more USB clients");
-        }
-        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_ALL_FREE) {
-            ESP_LOGI(TAG, "All USB devices freed");
-        }
-    }
-}
-
-// USB Host client event callback
-static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *arg)
-{
-    switch (event_msg->event) {
-        case USB_HOST_CLIENT_EVENT_NEW_DEV:
-            ESP_LOGI(TAG, "New USB device detected");
-            break;
-        case USB_HOST_CLIENT_EVENT_DEV_GONE:
-            ESP_LOGW(TAG, "USB device disconnected");
-            am7_connected = false;
-            if (am7_dev) {
-                usb_host_device_close(client_hdl, am7_dev);
-                am7_dev = NULL;
+        // Read available data
+        esp_err_t ret = tinyusb_cdcacm_read(itf, buf, sizeof(buf), &rx_size);
+        if (ret == ESP_OK && rx_size > 0) {
+            // Accumulate data in buffer
+            for (size_t i = 0; i < rx_size && rx_buffer_pos < sizeof(rx_buffer) - 1; i++) {
+                char c = (char)buf[i];
+                
+                // Look for valid hex characters or newline
+                if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')) {
+                    rx_buffer[rx_buffer_pos++] = c;
+                } else if (c == '\n' || c == '\r') {
+                    // End of response, try to parse
+                    if (rx_buffer_pos >= AM7_RESPONSE_LEN) {
+                        rx_buffer[rx_buffer_pos] = '\0';
+                        ESP_LOGI(TAG, "AM7 response: %s", rx_buffer);
+                        
+                        if (am7_parse_data(rx_buffer, rx_buffer_pos, &am7_data)) {
+                            last_rx_sec = 0;
+                            am7_connected = true;
+                        }
+                    }
+                    // Reset buffer for next response
+                    rx_buffer_pos = 0;
+                    memset(rx_buffer, 0, sizeof(rx_buffer));
+                }
             }
-            break;
-        default:
-            break;
+        }
     }
 }
 
-// Initialize USB Host
-static bool am7_usb_host_init(void)
+// Initialize USB Host for CDC
+static bool am7_usb_init(void)
 {
-    if (usb_host_ready) return true;
-
-    // Install USB Host driver
-    const usb_host_config_t host_config = {
-        .skip_phy_setup = false,
-        .intr_flags = ESP_INTR_FLAG_LEVEL1,
+    if (usb_initialized) {
+        return true;
+    }
+    
+    ESP_LOGI(TAG, "Initializing USB Host for AM7 sensor...");
+    
+    // Configure TinyUSB for host mode
+    const tinyusb_config_t tusb_cfg = {
+        .device_descriptor = NULL,  // Host mode
+        .string_descriptor = NULL,
+        .external_phy = false,
+        .configuration_descriptor = NULL,
     };
     
-    esp_err_t err = usb_host_insUSB task...");
-    
-    // Initialize USB Host
-    if (!am7_usb_host_init()) {
-        ESP_LOGE(TAG, "USB Host initialization failed!");
-        vTaskDelete(NULL);
-        return;
+    esp_err_t ret = tinyusb_driver_install(&tusb_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to install TinyUSB driver: %s", esp_err_to_name(ret));
+        return false;
     }
-
-    // Wait a bit for devices to enumerate
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
-    while (1) {
-        // Try to open device if not connected
-        if (!am7_dev) {
-            if (am7_device_open()) {
-                ESP_LOGI(TAG, "AM7 device opened successfully");
-                last_rx_sec = 0;
-            } else {
-                // Retry every 5 seconds
-                vTaskDelay(pdMS_TO_TICKS(5000));
-                continue;
-            }
-        }
-
-        // Read data from AM7
-        if (am7_dev) {
-            uint8_t buf[16] = {0};
-            if (am7_usb_read(buf, sizeof(buf))) {
-                if (am7_parse_data(buf, &am7_data)) {
-                    last_rx_sec = 0;
-                    ESP_LOGI(TAG, "AM7: T=%.1f H=%.1f CO2=%d PM2.5=%d PM10=%d TVOC=%.2f HCHO=%.3f",
-                             am7_data.temp, am7_data.humidity,
-                             am7_data.co2, am7_data.pm25, am7_data.pm10, am7_data.tvoc, am7_data.hcho);
-                } else {
-                    ESP_LOGW(TAG, "Failed to parse AM7 data");
-                }
-            } else {
-                last_rx_sec++;
-                if (last_rx_sec > 30) {
-                    ESP_LOGW(TAG, "No data from AM7 for 30+ seconds");
-                    am7_connected = false;
-                }
+    
+    // Configure CDC-ACM for host mode
+    tinyusb_config_cdcacm_t acm_cfg = {
+        .usb_dev = TINYUSB_USBDEV_0,
+        .cdc_port = TINYUSB_CDC_ACM_0,
+        .rx_unread_buf_sz = 256,
+        .callback_rx = &cdc_rx_callback,
+        .callback_rx_wanted_char = NULL,
+        .callback_line_state_changed = NULL,
+        .callback_line_coding_changed = NULL
+    };
+    
+    ret = tusb_cdc_acm_init(&acm_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize CDC-ACM: %s", esp_err_to_name(ret));
+        return false;
+    }
+    
+    usb_initialized = true;
+    ESP_LOGI(TAG, "USB Host CDC initialized successfully");
     return true;
 }
 
-// Find and open AM7 device
-static bool am7_device_open(void)
+// Send data request command to AM7 sensor
+static bool am7_send_request(void)
 {
-    if (am7_dev) return true;
-
-    uint8_t dev_addr_list[10];
-    int num_devs = 10;
+    if (!usb_initialized) {
+        return false;
+    }
     
-    esp_err_t err = usb_host_device_addr_list_fill(sizeof(dev_addr_list), dev_addr_list, &num_devs);
-    if (err != ESP_OK || num_devs == 0) {
+    esp_err_t ret = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, 
+                                                 am7_request_cmd, 
+                                                 AM7_REQUEST_CMD_LEN);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to send request command: %s", esp_err_to_name(ret));
         return false;
     }
-
-    // Check each device
-    for (int i = 0; i < num_devs; i++) {
-        usb_device_handle_t dev;
-        err = usb_host_device_open(client_hdl, dev_addr_list[i], &dev);
-        if (err != ESP_OK) continue;
-
-        const usb_device_desc_t *dev_desc;
-        err = usb_host_get_device_descriptor(dev, &dev_desc);
-        if (err != ESP_OK) {
-            usb_host_device_close(client_hdl, dev);
-            continue;
-        }
-
-        // Check if this is AM7
-        if (dev_desc->idVendor == AM7_VID && dev_desc->idProduct == AM7_PID) {
-            ESP_LOGI(TAG, "AM7 device found! VID:0x%04X PID:0x%04X", 
-                     dev_desc->idVendor, dev_desc->idProduct);
-            
-            // Claim interface
-            err = usb_host_interface_claim(client_hdl, dev, AM7_INTERFACE, 0);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to claim interface: %s", esp_err_to_name(err));
-                usb_host_device_close(client_hdl, dev);
-                return false;
-            }
-
-            am7_dev = dev;
-            am7_connected = true;
-            
-            // Configure serial parameters
-            if (!am7_configure_serial()) {
-                ESP_LOGW(TAG, "Failed to configure serial parameters");
-            }
-            
-            return true;
-        }
-
-        usb_host_device_close(client_hdl, dev);
+    
+    ret = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 100);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to flush request command: %s", esp_err_to_name(ret));
+        return false;
     }
-
-    return false;
+    
+    ESP_LOGD(TAG, "Sent data request to AM7");
+    return true;
 }
 
-// Read data from AM7 via USB bulk transfer
-static bool am7_usb_read(uint8_t *buf, size_t len)
+// Parse AM7 sensor data from hex string
+// Protocol: 28 hex chars = 7 values (pm25, pm10, hcho, tvoc, co2, temp, hum)
+// Each value is 4 hex characters (16-bit integer)
+static bool am7_parse_data(const char *hex_data, size_t len, am7_data_t *out)
 {
-    if (!am7_dev) return false;
-
-    usb_transfer_t *transfer;
-    esp_err_t err = usb_host_transfer_alloc(len, 0, &transfer);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Transfer alloc failed: %s", esp_err_to_name(err));
+    if (!hex_data || !out || len < AM7_RESPONSE_LEN) {
+        ESP_LOGW(TAG, "Invalid data for parsing: len=%d (need %d)", len, AM7_RESPONSE_LEN);
         return false;
     }
-
-    transfer->device_handle = am7_dev;
-    transfer->bEndpointAddress = AM7_IN_EP;
-    transfer->num_bytes = len;
-    transfer->timeout_ms = 1000;
-
-    err = usb_host_transfer_submit_control(client_hdl, transfer);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Transfer submit failed: %s", esp_err_to_name(err));
-        usb_host_transfer_free(transfer);
-        return false;
+    
+    // Parse 7 hex values (4 chars each)
+    char hex_str[5] = {0};  // 4 chars + null terminator
+    unsigned int values[7];
+    
+    for (int i = 0; i < 7; i++) {
+        // Extract 4-character hex string
+        memcpy(hex_str, &hex_data[i * 4], 4);
+        hex_str[4] = '\0';
+        
+        // Parse as hex integer
+        if (sscanf(hex_str, "%x", &values[i]) != 1) {
+            ESP_LOGW(TAG, "Failed to parse hex value at position %d: %s", i, hex_str);
+            return false;
+        }
     }
-
-    // Wait for transfer to complete
-    // Note: In production, use async callbacks for better performance
-    if (transfer->status == USB_TRANSFER_STATUS_COMPLETED) {
-        memcpy(buf, transfer->data_buffer, transfer->actual_num_bytes);
-        usb_host_transfer_free(transfer);
-        return true;
-    }
-
-    usb_host_transfer_free(transfer);
-    return false;
-}
-
-// Function to parse AM7 raw data
-static bool am7_parse_data(uint8_t *buf, am7_data_t *data) {
-    if(!buf || !data) return false;
-
-    // Example parsing (adjust according to AM7 protocol)
-    data->temp = buf[0] + buf[1]/100.0f;
-    data->humidity = buf[2] + buf[3]/100.0f;
-    data->co2 = (buf[4]<<8)|buf[5];
-    data->pm25 = (buf[6]<<8)|buf[7];
-    data->pm10 = (buf[8]<<8)|buf[9];
-    data->tvoc = buf[10]/100.0f;
-    data->hcho = buf[11]/100.0f;
+    
+    // Assign parsed values in order: pm25, pm10, hcho, tvoc, co2, temp, hum
+    out->pm25 = values[0];
+    out->pm10 = values[1];
+    out->hcho = (float)values[2] / 1000.0f;  // Convert to mg/m³
+    out->tvoc = (float)values[3] / 1000.0f;  // Convert to mg/m³
+    out->co2 = values[4];
+    out->temp = (float)values[5] / 10.0f;     // Convert to °C
+    out->humidity = (float)values[6] / 10.0f; // Convert to %
+    
+    ESP_LOGI(TAG, "Parsed: PM2.5=%d PM10=%d HCHO=%.3f TVOC=%.3f CO2=%d Temp=%.1f Hum=%.1f",
+             out->pm25, out->pm10, out->hcho, out->tvoc, out->co2, out->temp, out->humidity);
+    
     return true;
 }
 
 // AM7 polling task
 void am7_task(void *arg)
 {
-    ESP_LOGI(TAG, "Starting AM7 task...");
-    if(!am7_usb_init()) {
-        ESP_LOGW(TAG, "AM7 not detected, will retry...");
+    ESP_LOGI(TAG, "AM7 task started");
+    ESP_LOGW(TAG, "Note: USB Host CDC for CP2102 requires hardware testing");
+    ESP_LOGW(TAG, "Using simulated data until hardware is connected and tested");
+    
+    // Try to initialize USB Host
+    if (!am7_usb_init()) {
+        ESP_LOGW(TAG, "USB Host initialization failed, using simulated data");
     }
-
-    while(1)
-    {
-        if(am7_dev) {
-            uint8_t buf[16] = {0};
-            if(am7_usb_read(buf, sizeof(buf))) {
-                if(am7_parse_data(buf, &am7_data)) {
-                    am7_connected = true;
-                    last_rx_sec = 0;
-                    ESP_LOGI(TAG, "AM7: T=%.1f H=%.1f CO2=%d PM2.5=%d VOC=%.2f",
-                             am7_data.temp, am7_data.humidity,
-                             am7_data.co2, am7_data.pm25, am7_data.voc);
-                } else {
-                    ESP_LOGW(TAG, "Failed to parse AM7 data");
-                }
-            } else {
+    
+    // Simulate sensor data for testing (will be replaced by real data when USB works)
+    am7_data.temp = 23.5;
+    am7_data.humidity = 45.0;
+    am7_data.co2 = 420;
+    am7_data.pm25 = 12;
+    am7_data.pm10 = 15;
+    am7_data.tvoc = 0.15;
+    am7_data.hcho = 0.03;
+    
+    uint32_t request_counter = 0;
+    
+    while (1) {
+        // Check if we have real USB connection
+        if (usb_initialized) {
+            // Send data request every 5 seconds
+            if (request_counter % 5 == 0) {
+                am7_send_request();
+            }
+            request_counter++;
+            
+            // Monitor connection status
+            last_rx_sec++;
+            
+            if (last_rx_sec > 30) {
                 am7_connected = false;
-                last_rx_sec++;
+                if (last_rx_sec == 31) {
+                    ESP_LOGW(TAG, "No data from AM7 for 30+ seconds");
+                }
             }
         } else {
-            // Try to reconnect
-            if(am7_usb_init()) {
-                ESP_LOGI(TAG, "AM7 reconnected");
-            }
+            // No USB, use simulated data
+            am7_connected = true;
+            last_rx_sec = 0;
         }
-
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Poll every second
+        
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

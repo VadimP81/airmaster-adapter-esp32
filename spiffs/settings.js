@@ -35,15 +35,15 @@ async function saveSettings(event) {
       pass: document.getElementById("password").value 
     },
     mqtt: {
-      broker: document.getElementById("broker").v,
+      broker: document.getElementById("broker").value,
+      port: parseInt(document.getElementById("port").value),
+      user: document.getElementById("user").value,
+      pass: document.getElementById("pass").value,
       topic: document.getElementById("topic").value
     },
     device_name: document.getElementById("device_name").value,
     interval: parseInt(document.getElementById("interval").value),
     ha_discovery: document.getElementById("ha_discovery").checked
-      pass: document.getElementById("pass").value
-    },
-    interval: parseInt(document.getElementById("interval").value)
   };
 
   try {
