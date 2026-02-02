@@ -119,6 +119,61 @@
         </div>
       </div>
     </section>
+
+    <section class="section-group">
+      <div class="section-title">🔋 Device</div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">Battery Status</div>
+          <div class="sensor-reading"><span id="battery_status">–</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">Battery Level</div>
+          <div class="sensor-reading"><span id="battery_level">–</span><span class="sensor-unit">/4</span></div>
+        </div>
+      </div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">Runtime</div>
+          <div class="sensor-reading"><span id="runtime_hours">–</span><span class="sensor-unit">hours</span></div>
+        </div>
+        <div class="sensor-item"></div>
+      </div>
+    </section>
+
+    <section class="section-group">
+      <div class="section-title">🫧 Particle Counts</div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;0.3 µm</div>
+          <div class="sensor-reading"><span id="pc03">–</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;0.5 µm</div>
+          <div class="sensor-reading"><span id="pc05">–</span></div>
+        </div>
+      </div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;1.0 µm</div>
+          <div class="sensor-reading"><span id="pc10">–</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;2.5 µm</div>
+          <div class="sensor-reading"><span id="pc25">–</span></div>
+        </div>
+      </div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;5.0 µm</div>
+          <div class="sensor-reading"><span id="pc50">–</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">&gt;10 µm</div>
+          <div class="sensor-reading"><span id="pc100">–</span></div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script src="sensor.js"></script>

@@ -73,11 +73,15 @@
 
     <section>
       <div class="controls">
-        <button onclick="refreshLogs()">🔄 Refresh</button>
+        <button id="pauseBtn">⏸ Pause</button>
         <button onclick="clearLogs()">🗑 Clear</button>
         <label>
           <input type="checkbox" id="autoScroll" checked>
           Auto-scroll
+        </label>
+        <label>
+          <input type="checkbox" id="debugMode">
+          Debug Logs
         </label>
       </div>
       
@@ -92,9 +96,33 @@
     let autoScroll = true;
     let logOffset = 0;
     let isLoading = false;
+    let isPaused = false;
     
     document.getElementById('autoScroll').addEventListener('change', (e) => {
       autoScroll = e.target.checked;
+    });
+
+    document.getElementById('pauseBtn').addEventListener('click', () => {
+      isPaused = !isPaused;
+      const btn = document.getElementById('pauseBtn');
+      btn.textContent = isPaused ? '▶️ Resume' : '⏸ Pause';
+    });
+    
+    document.getElementById('debugMode').addEventListener('change', async (e) => {
+      try {
+        const response = await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: e.target.checked })
+        });
+        if (!response.ok) {
+          e.target.checked = !e.target.checked;
+          console.error('Failed to set debug mode');
+        }
+      } catch (error) {
+        e.target.checked = !e.target.checked;
+        console.error('Error setting debug mode:', error);
+      }
     });
     
     function scrollToBottom() {
@@ -156,6 +184,7 @@
     }
     
     async function refreshLogs() {
+      if (isPaused) return;
       if (isLoading) return;
       isLoading = true;
       

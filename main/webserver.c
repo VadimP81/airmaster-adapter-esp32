@@ -261,6 +261,50 @@ static esp_err_t api_logs_clear_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+// API: Toggle debug mode (runtime only, not persisted)
+static esp_err_t api_debug_handler(httpd_req_t *req)
+{
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "POST, OPTIONS");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
+    
+    char buffer[128];
+    int ret = httpd_req_recv(req, buffer, sizeof(buffer) - 1);
+    if (ret <= 0) {
+        const char *err_resp = "{\"ok\":false,\"error\":\"Failed to receive data\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, err_resp, strlen(err_resp));
+        return ESP_FAIL;
+    }
+    buffer[ret] = '\0';
+
+    cJSON *root = cJSON_Parse(buffer);
+    if (!root) {
+        const char *err_resp = "{\"ok\":false,\"error\":\"Invalid JSON\"}";
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, err_resp, strlen(err_resp));
+        return ESP_FAIL;
+    }
+
+    cJSON *enabled = cJSON_GetObjectItem(root, "enabled");
+    if (enabled && cJSON_IsBool(enabled)) {
+        am7_debug_mode = cJSON_IsTrue(enabled);
+        ESP_LOGI(TAG, "Debug mode: %s", am7_debug_mode ? "ON" : "OFF");
+    }
+
+    cJSON_Delete(root);
+
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", true);
+    char *json_str = cJSON_Print(response);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json_str);
+    
+    cJSON_free(json_str);
+    cJSON_Delete(response);
+    return ESP_OK;
+}
+
 // API: Get status
 static esp_err_t api_status_handler(httpd_req_t *req)
 {
@@ -312,6 +356,15 @@ static esp_err_t api_sensor_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(data, "pm10", am7_data.pm10);
     cJSON_AddNumberToObject(data, "tvoc", am7_data.tvoc);
     cJSON_AddNumberToObject(data, "hcho", am7_data.hcho);
+    cJSON_AddNumberToObject(data, "battery_status", am7_data.battery_status);
+    cJSON_AddNumberToObject(data, "battery_level", am7_data.battery_level);
+    cJSON_AddNumberToObject(data, "runtime_hours", am7_data.runtime_hours);
+    cJSON_AddNumberToObject(data, "pc03", am7_data.pc03);
+    cJSON_AddNumberToObject(data, "pc05", am7_data.pc05);
+    cJSON_AddNumberToObject(data, "pc10", am7_data.pc10);
+    cJSON_AddNumberToObject(data, "pc25", am7_data.pc25);
+    cJSON_AddNumberToObject(data, "pc50", am7_data.pc50);
+    cJSON_AddNumberToObject(data, "pc100", am7_data.pc100);
     cJSON_AddItemToObject(root, "data", data);
 
     char *json_str = cJSON_Print(root);
@@ -583,6 +636,10 @@ void web_server_start(void)
     httpd_uri_t api_logs_clear_uri = {.uri = "/api/logs/clear", .method = HTTP_POST, .handler = api_logs_clear_handler};
     ret = httpd_register_uri_handler(server, &api_logs_clear_uri);
     ESP_LOGI(TAG, "Registered /api/logs/clear: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
+
+    httpd_uri_t api_debug_uri = {.uri = "/api/debug", .method = HTTP_POST, .handler = api_debug_handler};
+    ret = httpd_register_uri_handler(server, &api_debug_uri);
+    ESP_LOGI(TAG, "Registered /api/debug: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
 
     httpd_uri_t api_get_settings_uri = {.uri = "/api/settings", .method = HTTP_GET, .handler = api_get_settings_handler};
     ret = httpd_register_uri_handler(server, &api_get_settings_uri);

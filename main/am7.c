@@ -9,6 +9,9 @@
 
 static const char *TAG = "AM7";
 
+// Debug mode flag (runtime toggle, not persisted)
+bool am7_debug_mode = false;
+
 // AM7 CP2102 USB identifiers
 #define AM7_VID 0x10C4  // Silicon Labs
 #define AM7_PID 0xEA60  // CP2102
@@ -43,7 +46,9 @@ int last_rx_sec = 0;
 
 static bool usb_initialized = false;
 static cdc_acm_dev_hdl_t cdc_dev = NULL;
-static uint8_t rx_buffer[256] = {0};
+// DMA-aligned RX buffer (must be aligned to 32-byte cache line for DMA)
+// Static allocation ensures proper memory alignment for direct memory access
+static uint8_t rx_buffer[256] __attribute__((aligned(32))) = {0};
 static size_t rx_buffer_pos = 0;
 
 // Forward declaration
@@ -142,6 +147,16 @@ static bool cdc_rx_callback(const uint8_t *data, size_t len, void *arg)
         }
 
         if (should_parse) {
+            // Log raw data in debug mode
+            if (am7_debug_mode) {
+                char hex_str[256] = {0};
+                for (size_t j = 0; j < rx_buffer_pos && j < 64; j++) {
+                    snprintf(hex_str + strlen(hex_str), sizeof(hex_str) - strlen(hex_str) - 1, 
+                             "%02X ", rx_buffer[j]);
+                }
+                ESP_LOGI(TAG, "[DEBUG] Raw RX: %s (len=%d)", hex_str, (int)rx_buffer_pos);
+            }
+            
             // Try to parse this frame
             if (am7_parse_data(rx_buffer, rx_buffer_pos, &am7_data)) {
                 last_rx_sec = 0;
@@ -184,7 +199,7 @@ static bool am7_usb_init(void)
     ESP_LOGI(TAG, "Initializing USB Host for AM7 sensor...");
     ESP_LOGI(TAG, "Connect AM7 via USB OTG cable");
     
-    // Install USB Host driver
+    // Install USB Host driver with DMA support enabled
     const usb_host_config_t host_config = {
         .skip_phy_setup = false,
         .intr_flags = ESP_INTR_FLAG_LEVEL1,
@@ -218,11 +233,12 @@ static bool am7_open_device(void)
         return (cdc_dev != NULL);
     }
     
-    // Try to open AM7 device
+    // Try to open AM7 device with DMA-optimized buffer sizes
+    // Buffer sizes are divisible by 4 and 8 for DMA cache line alignment
     const cdc_acm_host_device_config_t dev_config = {
         .connection_timeout_ms = 1000,
-        .out_buffer_size = 64,
-        .in_buffer_size = 256,
+        .out_buffer_size = 64,      // Outbound buffer for DMA (divisible by 4)
+        .in_buffer_size = 256,      // Inbound buffer for DMA (divisible by 4)
         .event_cb = NULL,
         .data_cb = cdc_rx_callback,
         .user_arg = NULL,
@@ -300,8 +316,9 @@ static bool am7_send_request(void)
 }
 
 // Parse AM7 sensor data from binary response
-// Response format: 0xaa (1 byte) + 7 uint16_t values (14 bytes) + extra padding = ~54 bytes total
+// Response format: 0xaa (1 byte) + 7 uint16_t values (14 bytes) + extra fields (battery, runtime, particle counts)
 // Values: PM2.5, PM10, HCHO, TVOC, CO2, Temp, Humidity (all big-endian uint16_t)
+// Checksum: sum of bytes 1-36 (big-endian uint16 at bytes 36-37)
 static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
 {
     if (!data || !out || len < 15) {
@@ -311,6 +328,20 @@ static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
     // Must start with 0xaa marker
     if (data[0] != 0xaa) {
         return false;
+    }
+
+    // Validate checksum if frame is long enough (at least 38 bytes for checksum)
+    if (len >= 38) {
+        uint16_t calculated_sum = 0;
+        // Sum bytes 0-35 (includes 0xAA header through reserved fields)
+        for (int i = 0; i < 36; i++) {
+            calculated_sum += data[i];
+        }
+        uint16_t frame_checksum = ((uint16_t)data[36] << 8) | (uint16_t)data[37];
+        if (calculated_sum != frame_checksum) {
+            ESP_LOGW(TAG, "Checksum failed: calculated=0x%04X, frame=0x%04X", calculated_sum, frame_checksum);
+            return false;
+        }
     }
 
     // Extract 7 uint16_t values starting at byte 1 (big-endian)
@@ -333,6 +364,29 @@ static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
     out->co2 = values[4];            // CO2 in ppm
     out->temp = values[5] / 100.0;   // Temperature in °C
     out->humidity = values[6] / 100.0; // Humidity in %
+
+    // Extended fields (requires at least 31 bytes for particle counts)
+    if (len >= 31) {
+        out->battery_status = data[15];
+        out->battery_level = data[16];
+        out->runtime_hours = ((uint16_t)data[17] << 8) | (uint16_t)data[18];
+        out->pc03 = ((uint16_t)data[19] << 8) | (uint16_t)data[20];
+        out->pc05 = ((uint16_t)data[21] << 8) | (uint16_t)data[22];
+        out->pc10 = ((uint16_t)data[23] << 8) | (uint16_t)data[24];
+        out->pc25 = ((uint16_t)data[25] << 8) | (uint16_t)data[26];
+        out->pc50 = ((uint16_t)data[27] << 8) | (uint16_t)data[28];
+        out->pc100 = ((uint16_t)data[29] << 8) | (uint16_t)data[30];
+    } else {
+        out->battery_status = 0;
+        out->battery_level = 0;
+        out->runtime_hours = 0;
+        out->pc03 = 0;
+        out->pc05 = 0;
+        out->pc10 = 0;
+        out->pc25 = 0;
+        out->pc50 = 0;
+        out->pc100 = 0;
+    }
 
     return true;
 }
@@ -409,6 +463,15 @@ simulated_mode:
     am7_data.pm10 = 0;
     am7_data.tvoc = 0.0;
     am7_data.hcho = 0.0;
+    am7_data.battery_status = 0;
+    am7_data.battery_level = 0;
+    am7_data.runtime_hours = 0;
+    am7_data.pc03 = 0;
+    am7_data.pc05 = 0;
+    am7_data.pc10 = 0;
+    am7_data.pc25 = 0;
+    am7_data.pc50 = 0;
+    am7_data.pc100 = 0;
     am7_connected = true;
     last_rx_sec = 0;
     

@@ -122,11 +122,20 @@ bool mqtt_publish_ha_discovery(void)
         {"PM10", "pm10", "{{ value_json.pm10 }}", "µg/m³", "pm10", "measurement"},
         {"TVOC", "tvoc", "{{ value_json.tvoc }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"HCHO", "hcho", "{{ value_json.hcho }}", "mg/m³", "volatile_organic_compounds", "measurement"},
+        {"Battery Status", "battery_status", "{{ 'Charging' if value_json.battery_status == 1 else 'Battery' }}", "", NULL, NULL},
+        {"Battery Level", "battery_level", "{{ value_json.battery_level }}", "", "battery", "measurement"},
+        {"Runtime Hours", "runtime_hours", "{{ value_json.runtime_hours }}", "h", "duration", "total_increasing"},
+        {"Particles >0.3µm", "pc03", "{{ value_json.pc03 }}", "", NULL, "measurement"},
+        {"Particles >0.5µm", "pc05", "{{ value_json.pc05 }}", "", NULL, "measurement"},
+        {"Particles >1.0µm", "pc10", "{{ value_json.pc10 }}", "", NULL, "measurement"},
+        {"Particles >2.5µm", "pc25", "{{ value_json.pc25 }}", "", NULL, "measurement"},
+        {"Particles >5.0µm", "pc50", "{{ value_json.pc50 }}", "", NULL, "measurement"},
+        {"Particles >10µm", "pc100", "{{ value_json.pc100 }}", "", NULL, "measurement"},
         {"Uptime", "uptime", "{{ value_json.uptime }}", "s", "duration", "total_increasing"},
         {"Last Update", "last_update", "{{ value_json.last_update }}", "s", "duration", "measurement"},
     };
 
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 18; i++) {
         char config_topic[128];
         snprintf(config_topic, sizeof(config_topic), 
                  "homeassistant/sensor/%s_%s/config", device_id, sensors[i].sensor_type);
@@ -145,8 +154,12 @@ bool mqtt_publish_ha_discovery(void)
         cJSON_AddStringToObject(config, "state_topic", state_topic);
         cJSON_AddStringToObject(config, "value_template", sensors[i].value_template);
         cJSON_AddStringToObject(config, "unit_of_measurement", sensors[i].unit);
-        cJSON_AddStringToObject(config, "device_class", sensors[i].device_class);
-        cJSON_AddStringToObject(config, "state_class", sensors[i].state_class);
+        if (sensors[i].device_class) {
+            cJSON_AddStringToObject(config, "device_class", sensors[i].device_class);
+        }
+        if (sensors[i].state_class) {
+            cJSON_AddStringToObject(config, "state_class", sensors[i].state_class);
+        }
 
         // Device information
         cJSON *device = cJSON_CreateObject();
@@ -217,11 +230,16 @@ void mqtt_task(void *arg)
                 last_update_sec = (int)(uptime_sec - last_mqtt_publish_time);
             }
 
-            char payload[320];
+            char payload[512];
             snprintf(payload, sizeof(payload),
-                     "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"pm10\":%d,\"tvoc\":%.2f,\"hcho\":%.3f,\"uptime\":%llu,\"last_update\":%d}",
+                     "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"pm10\":%d,\"tvoc\":%.2f,\"hcho\":%.3f,"
+                     "\"battery_status\":%d,\"battery_level\":%d,\"runtime_hours\":%d,"
+                     "\"pc03\":%d,\"pc05\":%d,\"pc10\":%d,\"pc25\":%d,\"pc50\":%d,\"pc100\":%d,"
+                     "\"uptime\":%llu,\"last_update\":%d}",
                      am7_data.temp, am7_data.humidity,
                      am7_data.co2, am7_data.pm25, am7_data.pm10, am7_data.tvoc, am7_data.hcho,
+                     am7_data.battery_status, am7_data.battery_level, am7_data.runtime_hours,
+                     am7_data.pc03, am7_data.pc05, am7_data.pc10, am7_data.pc25, am7_data.pc50, am7_data.pc100,
                      (unsigned long long)uptime_sec, last_update_sec);
 
             if(!mqtt_publish(settings_get_mqtt_topic(), payload)) {
