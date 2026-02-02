@@ -21,3 +21,4 @@ int ota_get_progress_percent(void);
 
 // HTTP handler for OTA upload
 esp_err_t ota_upload_handler(httpd_req_t *req);
+esp_err_t ota_spiffs_upload_handler(httpd_req_t *req);

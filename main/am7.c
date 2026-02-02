@@ -380,8 +380,8 @@ void am7_task(void *arg)
     uint32_t poll_counter = 0;
     
     while (1) {
-        // Send request every 5 seconds
-        if (poll_counter % 5 == 0) {
+        // Send request every 3 seconds
+        if (poll_counter % 3 == 0) {
             if (am7_send_request()) {
                 ESP_LOGD(TAG, "Request sent");
             }

@@ -15,6 +15,7 @@ const char* settings_get_device_name(void);
 bool settings_get_ha_discovery_enabled(void);
 const char* settings_get_wifi_ssid(void);
 const char* settings_get_wifi_password(void);
+const char* settings_get_hostname(void);
 
 // Setters
 void settings_set_interval(int value);
@@ -27,3 +28,4 @@ void settings_set_device_name(const char *value);
 void settings_set_ha_discovery_enabled(bool enabled);
 void settings_set_wifi_ssid(const char *value);
 void settings_set_wifi_password(const char *value);
+void settings_set_hostname(const char *value);

@@ -100,14 +100,49 @@
       }
     }
     
-    function formatLogLine(line) {
-      // Colorize log levels
-      if (line.includes('E (')) return `<div class="log-line log-error">${escapeHtml(line)}</div>`;
-      if (line.includes('W (')) return `<div class="log-line log-warn">${escapeHtml(line)}</div>`;
-      if (line.includes('I (')) return `<div class="log-line log-info">${escapeHtml(line)}</div>`;
-      if (line.includes('D (')) return `<div class="log-line log-debug">${escapeHtml(line)}</div>`;
-      if (line.includes('V (')) return `<div class="log-line log-verbose">${escapeHtml(line)}</div>`;
-      return `<div class="log-line">${escapeHtml(line)}</div>`;
+    function formatLogLine(log) {
+      // Handle both old string format and new object format
+      if (typeof log === 'string') {
+        return `<div class="log-line">${escapeHtml(log)}</div>`;
+      }
+      
+      // New structured format
+      if (!log || typeof log !== 'object') {
+        return '<div class="log-line log-error">Invalid log format</div>';
+      }
+      
+      const timestamp = formatTimestamp(log.timestamp || '');
+      const message = escapeHtml(log.message || '');
+      const level = log.level || 'I';
+      
+      // Choose color based on log level
+      let colorClass = 'log-info';
+      switch (level) {
+        case 'E': colorClass = 'log-error'; break;
+        case 'W': colorClass = 'log-warn'; break;
+        case 'I': colorClass = 'log-info'; break;
+        case 'D': colorClass = 'log-debug'; break;
+        case 'V': colorClass = 'log-verbose'; break;
+      }
+      
+      return `<div class="log-line ${colorClass}">${timestamp} ${message}</div>`;
+    }
+    
+    function formatTimestamp(isoStr) {
+      // Parse ISO 8601 duration: P[n]DT[n]H[n]M[n].[n]S or PT[n]H[n]M[n].[n]S
+      let match = isoStr.match(/P(\d+)DT(\d+)H(\d+)M([\d.]+)S/);
+      if (match) {
+        const [_, days, hours, minutes, seconds] = match;
+        return `[${days}d ${hours.padStart(2,'0')}:${minutes.padStart(2,'0')}:${Math.floor(seconds).toString().padStart(2,'0')}]`;
+      }
+      
+      match = isoStr.match(/PT(\d+)H(\d+)M([\d.]+)S/);
+      if (match) {
+        const [_, hours, minutes, seconds] = match;
+        return `[${hours.padStart(2,'0')}:${minutes.padStart(2,'0')}:${Math.floor(seconds).toString().padStart(2,'0')}]`;
+      }
+      
+      return isoStr;
     }
     
     function escapeHtml(text) {
@@ -139,8 +174,9 @@
         }
       } catch (error) {
         console.error('Error fetching logs:', error);
+        console.error('Error details:', error.stack);
         document.getElementById('logContainer').innerHTML = 
-          '<div class="log-line log-error">Failed to load logs</div>';
+          `<div class="log-line log-error">Failed to load logs: ${escapeHtml(error.message)}</div>`;
       } finally {
         isLoading = false;
       }

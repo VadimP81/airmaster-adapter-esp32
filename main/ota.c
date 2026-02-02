@@ -2,6 +2,9 @@
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_app_format.h"
+#include "esp_partition.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <string.h>
 
 #ifndef MIN
@@ -79,6 +82,74 @@ esp_err_t ota_write(const uint8_t *data, size_t len)
         ESP_LOGI(TAG, "Written %zu bytes", bytes_written);
     }
 
+    return ESP_OK;
+}
+
+// HTTP handler for SPIFFS OTA upload
+esp_err_t ota_spiffs_upload_handler(httpd_req_t *req)
+{
+    esp_err_t err;
+    char buf[1024];
+    int received;
+    
+    // Find SPIFFS partition
+    const esp_partition_t *spiffs_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, NULL);
+    
+    if (!spiffs_partition) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "SPIFFS partition not found");
+        return ESP_FAIL;
+    }
+    
+    ESP_LOGI(TAG, "Starting SPIFFS OTA update (size: 0x%lx)", (unsigned long)spiffs_partition->size);
+    
+    // Erase SPIFFS partition
+    err = esp_partition_erase_range(spiffs_partition, 0, spiffs_partition->size);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase SPIFFS partition: %s", esp_err_to_name(err));
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to erase SPIFFS");
+        return err;
+    }
+    
+    size_t bytes_written = 0;
+    
+    // Receive and write data
+    while (1) {
+        received = httpd_req_recv(req, buf, sizeof(buf));
+        if (received < 0) {
+            if (received == HTTPD_SOCK_ERR_TIMEOUT) {
+                continue;
+            }
+            ESP_LOGE(TAG, "Error receiving SPIFFS data");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive data");
+            return ESP_FAIL;
+        }
+        
+        if (received == 0) {
+            break;
+        }
+        
+        // Write to SPIFFS partition
+        err = esp_partition_write(spiffs_partition, bytes_written, buf, received);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to write SPIFFS: %s", esp_err_to_name(err));
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to write SPIFFS");
+            return err;
+        }
+        
+        bytes_written += received;
+    }
+    
+    ESP_LOGI(TAG, "SPIFFS OTA complete, %zu bytes written", bytes_written);
+    
+    // Send success response
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"message\":\"SPIFFS updated successfully\"}");
+    
+    // Reboot after 2 seconds to remount SPIFFS
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    esp_restart();
+    
     return ESP_OK;
 }
 

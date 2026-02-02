@@ -16,6 +16,7 @@ async function loadSettings() {
     document.getElementById("pass").value = "";
     document.getElementById("topic").value = s.mqtt?.topic || "airmaster/sensors";
     document.getElementById("device_name").value = s.device_name || "AirMaster Gateway";
+    document.getElementById("hostname").value = s.hostname || "sh-airmaster-adapter-esp";
     document.getElementById("interval").value = s.interval || 10;
     document.getElementById("ha_discovery").checked = s.ha_discovery !== false;
 
@@ -42,6 +43,7 @@ async function saveSettings(event) {
       topic: document.getElementById("topic").value
     },
     device_name: document.getElementById("device_name").value,
+    hostname: document.getElementById("hostname").value,
     interval: parseInt(document.getElementById("interval").value),
     ha_discovery: document.getElementById("ha_discovery").checked
   };

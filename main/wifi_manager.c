@@ -1,8 +1,10 @@
 #include "wifi_manager.h"
+#include "settings.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_netif.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include <string.h>
@@ -49,7 +51,16 @@ void wifi_init(void)
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
+    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
+    
+    // Set DHCP hostname from settings
+    if (sta_netif) {
+        const char *hostname = settings_get_hostname();
+        if (hostname && strlen(hostname) > 0) {
+            esp_netif_set_hostname(sta_netif, hostname);
+            ESP_LOGI(TAG, "DHCP hostname set to: %s", hostname);
+        }
+    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -110,7 +121,10 @@ esp_err_t wifi_start_ap(void)
     esp_wifi_stop();
     
     // Create AP network interface
-    esp_netif_create_default_wifi_ap();
+    esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
+    if (ap_netif) {
+        esp_netif_set_hostname(ap_netif, "airmaster-setup");
+    }
     
     // Configure AP
     wifi_config_t ap_config = {

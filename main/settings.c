@@ -17,6 +17,7 @@ static char device_name[32] = "AirMaster Adapter";
 static bool ha_discovery_enabled = true;
 static char wifi_ssid[32] = "ejeg";
 static char wifi_password[64] = "ejmegapass";
+static char hostname[32] = "sh-airmaster-adapter-esp";
 
 void settings_init(void) {
     esp_err_t ret = nvs_flash_init();
@@ -66,6 +67,9 @@ void settings_init(void) {
         len = sizeof(wifi_password);
         nvs_get_str(handle, "wifi_password", wifi_password, &len);
         
+        len = sizeof(hostname);
+        nvs_get_str(handle, "hostname", hostname, &len);
+        
         nvs_close(handle);
         ESP_LOGI(TAG, "Settings loaded from NVS");
     } else {
@@ -94,6 +98,7 @@ esp_err_t settings_save(void) {
     nvs_set_u8(handle, "ha_discovery", ha_discovery_enabled ? 1 : 0);
     nvs_set_str(handle, "wifi_ssid", wifi_ssid);
     nvs_set_str(handle, "wifi_password", wifi_password);
+    nvs_set_str(handle, "hostname", hostname);
 
     ret = nvs_commit(handle);
     nvs_close(handle);
@@ -112,6 +117,7 @@ void settings_set_device_name(const char *value) { strncpy(device_name, value, s
 void settings_set_ha_discovery_enabled(bool enabled) { ha_discovery_enabled = enabled; }
 void settings_set_wifi_ssid(const char *value) { strncpy(wifi_ssid, value, sizeof(wifi_ssid) - 1); }
 void settings_set_wifi_password(const char *value) { strncpy(wifi_password, value, sizeof(wifi_password) - 1); }
+void settings_set_hostname(const char *value) { strncpy(hostname, value, sizeof(hostname) - 1); }
 
 int settings_get_interval(void) { return interval; }
 const char* settings_get_mqtt_broker(void) { return mqtt_broker; }
@@ -123,3 +129,4 @@ const char* settings_get_device_name(void) { return device_name; }
 bool settings_get_ha_discovery_enabled(void) { return ha_discovery_enabled; }
 const char* settings_get_wifi_ssid(void) { return wifi_ssid; }
 const char* settings_get_wifi_password(void) { return wifi_password; }
+const char* settings_get_hostname(void) { return hostname; }

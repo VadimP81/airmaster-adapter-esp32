@@ -21,8 +21,15 @@ static httpd_handle_t server = NULL;
 
 // Log buffer for storing recent logs
 #define MAX_LOG_LINES 100
-#define MAX_LOG_LINE_LENGTH 256
-static char log_buffer[MAX_LOG_LINES][MAX_LOG_LINE_LENGTH];
+#define MAX_LOG_MESSAGE_LENGTH 200
+
+typedef struct {
+    char timestamp[32];  // ISO8601 format: 2026-02-02T12:34:56Z
+    char level;          // I/W/E/D
+    char message[MAX_LOG_MESSAGE_LENGTH];
+} log_entry_t;
+
+static log_entry_t log_buffer[MAX_LOG_LINES];
 static int log_write_index = 0;
 static int log_count = 0;
 static SemaphoreHandle_t log_mutex = NULL;
@@ -35,39 +42,54 @@ static int custom_log_vprintf(const char *fmt, va_list args)
     
     // Capture to buffer if mutex is initialized
     if (log_mutex && xSemaphoreTake(log_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-        // Get uptime in seconds
-        uint32_t uptime_sec = esp_timer_get_time() / 1000000;
-        uint32_t hours = uptime_sec / 3600;
-        uint32_t minutes = (uptime_sec % 3600) / 60;
-        uint32_t seconds = uptime_sec % 60;
+        log_entry_t *entry = &log_buffer[log_write_index];
         
-        // Format: [HH:MM:SS] message
-        int offset = snprintf(log_buffer[log_write_index], MAX_LOG_LINE_LENGTH,
-                             "[%02lu:%02lu:%02lu] ",
-                             (unsigned long)hours, (unsigned long)minutes, (unsigned long)seconds);
+        // Get uptime in milliseconds and format as ISO8601 duration
+        uint64_t uptime_ms = esp_timer_get_time() / 1000;
+        uint32_t total_seconds = uptime_ms / 1000;
+        uint32_t milliseconds = uptime_ms % 1000;
+        uint32_t days = total_seconds / 86400;
+        uint32_t hours = (total_seconds % 86400) / 3600;
+        uint32_t minutes = (total_seconds % 3600) / 60;
+        uint32_t seconds = total_seconds % 60;
         
-        // Create temporary buffer for full log
-        char temp_buffer[MAX_LOG_LINE_LENGTH];
-        vsnprintf(temp_buffer, MAX_LOG_LINE_LENGTH, fmt, args);
-        
-        // Parse log format: "I (1772) TAG: message" -> "TAG: message"
-        // Skip log level and milliseconds: find first ')' then skip to first letter after space
-        char *msg = temp_buffer;
-        char *paren = strchr(msg, ')');
-        if (paren) {
-            msg = paren + 1;
-            while (*msg == ' ') msg++;  // Skip spaces after ')'
+        // Format as ISO 8601 duration: P[n]DT[n]H[n]M[n].[n]S
+        if (days > 0) {
+            snprintf(entry->timestamp, sizeof(entry->timestamp),
+                     "P%luDT%luH%luM%lu.%03luS",
+                     (unsigned long)days, (unsigned long)hours, 
+                     (unsigned long)minutes, (unsigned long)seconds,
+                     (unsigned long)milliseconds);
+        } else {
+            snprintf(entry->timestamp, sizeof(entry->timestamp),
+                     "PT%luH%luM%lu.%03luS",
+                     (unsigned long)hours, (unsigned long)minutes, 
+                     (unsigned long)seconds, (unsigned long)milliseconds);
         }
         
-        // Append the cleaned message
-        snprintf(log_buffer[log_write_index] + offset, 
-                MAX_LOG_LINE_LENGTH - offset, "%.*s", 
-                (int)(MAX_LOG_LINE_LENGTH - offset - 1), msg);
+        // Create temporary buffer for full log
+        char temp_buffer[MAX_LOG_MESSAGE_LENGTH + 50];
+        vsnprintf(temp_buffer, sizeof(temp_buffer), fmt, args);
         
-        // Remove trailing newline if present
-        size_t len = strlen(log_buffer[log_write_index]);
-        if (len > 0 && log_buffer[log_write_index][len - 1] == '\n') {
-            log_buffer[log_write_index][len - 1] = '\0';
+        // Parse log format: "I (1772) TAG: message"
+        // Extract log level
+        entry->level = temp_buffer[0];
+        
+        // Skip to message after ')'
+        char *msg = strchr(temp_buffer, ')');
+        if (msg) {
+            msg++;
+            while (*msg == ' ') msg++;  // Skip spaces
+        } else {
+            msg = temp_buffer;
+        }
+        
+        // Copy message and remove trailing newline
+        strncpy(entry->message, msg, MAX_LOG_MESSAGE_LENGTH - 1);
+        entry->message[MAX_LOG_MESSAGE_LENGTH - 1] = '\0';
+        size_t len = strlen(entry->message);
+        if (len > 0 && entry->message[len - 1] == '\n') {
+            entry->message[len - 1] = '\0';
         }
         
         log_write_index = (log_write_index + 1) % MAX_LOG_LINES;
@@ -91,6 +113,12 @@ static esp_err_t serve_file(httpd_req_t *req, const char *filepath, const char *
     }
 
     httpd_resp_set_type(req, content_type);
+    
+    // Add cache control headers to prevent browser caching
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store, must-revalidate");
+    httpd_resp_set_hdr(req, "Pragma", "no-cache");
+    httpd_resp_set_hdr(req, "Expires", "0");
+    
     char buffer[512];
     size_t read_bytes;
     while ((read_bytes = fread(buffer, 1, sizeof(buffer), f)) > 0) {
@@ -157,8 +185,13 @@ static esp_err_t api_logs_handler(httpd_req_t *req)
         
         for (int i = 0; i < total_logs; i++) {
             int index = (start_index + i) % MAX_LOG_LINES;
-            if (log_buffer[index][0] != '\0') {
-                cJSON_AddItemToArray(logs_array, cJSON_CreateString(log_buffer[index]));
+            log_entry_t *entry = &log_buffer[index];
+            if (entry->message[0] != '\0') {
+                cJSON *log_obj = cJSON_CreateObject();
+                cJSON_AddStringToObject(log_obj, "timestamp", entry->timestamp);
+                cJSON_AddStringToObject(log_obj, "level", (char[]){entry->level, '\0'});
+                cJSON_AddStringToObject(log_obj, "message", entry->message);
+                cJSON_AddItemToArray(logs_array, log_obj);
             }
         }
         
@@ -253,6 +286,7 @@ static esp_err_t api_get_settings_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "interval", settings_get_interval());
     cJSON_AddStringToObject(root, "device_name", settings_get_device_name());
     cJSON_AddBoolToObject(root, "ha_discovery", settings_get_ha_discovery_enabled());
+    cJSON_AddStringToObject(root, "hostname", settings_get_hostname());
 
     char *json_str = cJSON_Print(root);
     httpd_resp_set_type(req, "application/json");
@@ -352,6 +386,12 @@ static esp_err_t api_post_settings_handler(httpd_req_t *req) {
     cJSON *ha_discovery = cJSON_GetObjectItem(root, "ha_discovery");
     if (ha_discovery && cJSON_IsBool(ha_discovery)) {
         settings_set_ha_discovery_enabled(cJSON_IsTrue(ha_discovery));
+        settings_updated = true;
+    }
+    
+    cJSON *hostname = cJSON_GetObjectItem(root, "hostname");
+    if (hostname && cJSON_IsString(hostname)) {
+        settings_set_hostname(hostname->valuestring);
         settings_updated = true;
     }
     
@@ -504,6 +544,10 @@ void web_server_start(void)
     httpd_uri_t api_ota_uri = {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_upload_handler};
     ret = httpd_register_uri_handler(server, &api_ota_uri);
     ESP_LOGI(TAG, "Registered /api/ota: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
+
+    httpd_uri_t api_ota_spiffs_uri = {.uri = "/api/ota/spiffs", .method = HTTP_POST, .handler = ota_spiffs_upload_handler};
+    ret = httpd_register_uri_handler(server, &api_ota_spiffs_uri);
+    ESP_LOGI(TAG, "Registered /api/ota/spiffs: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
 
     ESP_LOGI(TAG, "Web server started");
 }
