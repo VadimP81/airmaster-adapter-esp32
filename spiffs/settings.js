@@ -9,11 +9,23 @@ async function loadSettings() {
 
     document.getElementById("version").textContent = "v" + (s.version || "?");
     document.getElementById("ssid").value = s.wifi?.ssid || "";
-    document.getElementById("password").value = "";
+    // Password field: if WiFi is configured, show placeholder hint
+    const pwField = document.getElementById("password");
+    if (s.wifi?.ssid) {
+      pwField.placeholder = "••••••• (WiFi configured - leave empty to keep)";
+    } else {
+      pwField.placeholder = "Leave empty to keep current";
+    }
     document.getElementById("broker").value = s.mqtt?.broker || "";
     document.getElementById("port").value = s.mqtt?.port || 1883;
     document.getElementById("user").value = s.mqtt?.user || "";
-    document.getElementById("pass").value = "";
+    // MQTT password field: if configured, show placeholder hint
+    const mqttPassField = document.getElementById("pass");
+    if (s.mqtt?.user || s.mqtt?.broker) {
+      mqttPassField.placeholder = "••••••• (configured - leave empty to keep)";
+    } else {
+      mqttPassField.placeholder = "Optional";
+    }
     document.getElementById("topic").value = s.mqtt?.topic || "airmaster/sensors";
     document.getElementById("device_name").value = s.device_name || "AirMaster Gateway";
     document.getElementById("hostname").value = s.hostname || "sh-airmaster-adapter-esp";
@@ -66,7 +78,8 @@ async function saveSettings(event) {
     if(resp.ok) {
       if(confirm("Settings saved. Reboot now to apply changes?")) {
         fetch("/api/reboot",{method:"POST"});
-        document.body.innerHTML="<div class='card'><h2>Rebooting...</h2><p>Please wait 10 seconds.</p></div>";
+        document.body.innerHTML="<div class='card'><h2>Rebooting...</h2><p>Please wait 10 seconds.</p><p style='font-size:0.9em;color:#666'>Auto-refresh in 10s...</p></div>";
+        setTimeout(() => window.location.reload(), 10000);
       } else {
         btn.disabled=false; 
         btn.textContent="Save & Reboot";

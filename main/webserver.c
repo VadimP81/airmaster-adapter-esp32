@@ -273,7 +273,7 @@ static esp_err_t api_get_settings_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "version", VERSION_STRING);
     
     cJSON *wifi = cJSON_CreateObject();
-    cJSON_AddStringToObject(wifi, "ssid", ""); // Would need to store this
+    cJSON_AddStringToObject(wifi, "ssid", settings_get_wifi_ssid());
     cJSON_AddItemToObject(root, "wifi", wifi);
 
     cJSON *mqtt = cJSON_CreateObject();
