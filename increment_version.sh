@@ -24,11 +24,11 @@ cat > "$VERSION_FILE" << EOF
 #pragma once
 
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 #define VERSION_BUILD ${BUILD_NUM}
-#define VERSION_STRING "1.1.${BUILD_NUM}"
+#define VERSION_STRING "1.2.${BUILD_NUM}"
 #define BUILD_DATE "${BUILD_DATE}"
 #define GIT_HASH "${GIT_HASH}"
 EOF
 
-echo "Version updated to 1.1.${BUILD_NUM} (build #${BUILD_NUM})"
+echo "Version updated to 1.2.${BUILD_NUM} (build #${BUILD_NUM})"

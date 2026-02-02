@@ -19,6 +19,5 @@ idf_component_register(
         mqtt
         cjson
         spiffs
-        esp_tinyusb
         app_update
 )

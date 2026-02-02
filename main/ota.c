@@ -38,9 +38,6 @@ esp_err_t ota_begin(void)
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%lx",
-             update_partition->subtype, update_partition->address);
-
     // Begin OTA update
     esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
     if (err != ESP_OK) {

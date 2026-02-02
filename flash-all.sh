@@ -3,7 +3,7 @@
 
 DEVICE="/dev/tty.usbmodem1101"
 SPIFFS_SIZE=983040  # 960KB in bytes
-SPIFFS_OFFSET=0x290000  # From partitions.csv
+SPIFFS_OFFSET=0x2A0000  # From partitions.csv (after ota_0 + ota_1)
 
 echo "Building SPIFFS image..."
 . ~/esp/esp-idf/export.sh && \

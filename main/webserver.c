@@ -11,7 +11,10 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include <string.h>
+#include <time.h>
 
 static const char *TAG = "WEB";
 static httpd_handle_t server = NULL;
@@ -24,7 +27,7 @@ static int log_write_index = 0;
 static int log_count = 0;
 static SemaphoreHandle_t log_mutex = NULL;
 
-// Custom log hook to capture logs
+// Custom log hook to capture logs with timestamps
 static int custom_log_vprintf(const char *fmt, va_list args)
 {
     // Call default vprintf first
@@ -32,7 +35,34 @@ static int custom_log_vprintf(const char *fmt, va_list args)
     
     // Capture to buffer if mutex is initialized
     if (log_mutex && xSemaphoreTake(log_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-        vsnprintf(log_buffer[log_write_index], MAX_LOG_LINE_LENGTH, fmt, args);
+        // Get uptime in seconds
+        uint32_t uptime_sec = esp_timer_get_time() / 1000000;
+        uint32_t hours = uptime_sec / 3600;
+        uint32_t minutes = (uptime_sec % 3600) / 60;
+        uint32_t seconds = uptime_sec % 60;
+        
+        // Format: [HH:MM:SS] message
+        int offset = snprintf(log_buffer[log_write_index], MAX_LOG_LINE_LENGTH,
+                             "[%02lu:%02lu:%02lu] ",
+                             (unsigned long)hours, (unsigned long)minutes, (unsigned long)seconds);
+        
+        // Create temporary buffer for full log
+        char temp_buffer[MAX_LOG_LINE_LENGTH];
+        vsnprintf(temp_buffer, MAX_LOG_LINE_LENGTH, fmt, args);
+        
+        // Parse log format: "I (1772) TAG: message" -> "TAG: message"
+        // Skip log level and milliseconds: find first ')' then skip to first letter after space
+        char *msg = temp_buffer;
+        char *paren = strchr(msg, ')');
+        if (paren) {
+            msg = paren + 1;
+            while (*msg == ' ') msg++;  // Skip spaces after ')'
+        }
+        
+        // Append the cleaned message
+        snprintf(log_buffer[log_write_index] + offset, 
+                MAX_LOG_LINE_LENGTH - offset, "%.*s", 
+                (int)(MAX_LOG_LINE_LENGTH - offset - 1), msg);
         
         // Remove trailing newline if present
         size_t len = strlen(log_buffer[log_write_index]);
