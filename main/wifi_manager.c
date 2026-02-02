@@ -1,5 +1,6 @@
 #include "wifi_manager.h"
 #include "settings.h"
+#include "captive_portal.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -14,10 +15,12 @@ static EventGroupHandle_t wifi_event_group;
 static const int WIFI_CONNECTED_BIT = BIT0;
 static bool connected = false;
 static bool ap_mode = false;
+static int sta_retry_count = 0;
 
 #define AP_SSID "AirMaster-Setup"
 #define AP_PASSWORD ""  // Open network
 #define AP_MAX_CONN 4
+#define MAX_STA_RETRY 5  // Try 5 times before starting AP mode
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                               int32_t event_id, void* event_data)
@@ -26,13 +29,21 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         connected = false;
-        ESP_LOGI(TAG, "Disconnected from AP, retrying...");
-        esp_wifi_connect();
+        sta_retry_count++;
+        
+        if (sta_retry_count < MAX_STA_RETRY) {
+            ESP_LOGI(TAG, "Disconnected from AP, retry %d/%d...", sta_retry_count, MAX_STA_RETRY);
+            esp_wifi_connect();
+        } else {
+            ESP_LOGW(TAG, "Failed to connect after %d attempts, starting AP mode...", MAX_STA_RETRY);
+            wifi_start_ap();
+        }
         xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         connected = true;
+        sta_retry_count = 0;  // Reset retry counter on successful connection
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
@@ -96,6 +107,10 @@ esp_err_t wifi_connect(const char *ssid, const char *password)
         return ESP_ERR_INVALID_ARG;
     }
 
+    // Reset retry counter when attempting new connection
+    sta_retry_count = 0;
+    ap_mode = false;
+
     wifi_config_t wifi_config = {0};
     strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
     
@@ -120,6 +135,9 @@ esp_err_t wifi_start_ap(void)
     // Stop any existing WiFi
     esp_wifi_stop();
     
+        // Stop captive portal if running
+        captive_portal_stop();
+    
     // Create AP network interface
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
     if (ap_netif) {
@@ -143,6 +161,9 @@ esp_err_t wifi_start_ap(void)
     
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+    
+        // Start captive portal DNS server
+        captive_portal_start();
     ESP_ERROR_CHECK(esp_wifi_start());
     
     ap_mode = true;

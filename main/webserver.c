@@ -135,7 +135,27 @@ static esp_err_t serve_file(httpd_req_t *req, const char *filepath, const char *
 // Root handler
 static esp_err_t index_handler(httpd_req_t *req)
 {
+    // If in AP mode, redirect to setup page for captive portal
+    if (wifi_is_ap_mode()) {
+        return serve_file(req, "/spiffs/setup.html", "text/html");
+    }
     return serve_file(req, "/spiffs/index.html", "text/html");
+}
+
+// Setup page handler (for AP mode)
+static esp_err_t setup_page_handler(httpd_req_t *req)
+{
+    return serve_file(req, "/spiffs/setup.html", "text/html");
+}
+
+// Captive portal redirect handler - catches all unknown routes in AP mode
+static esp_err_t captive_portal_handler(httpd_req_t *req)
+{
+    // Redirect any unknown URL to setup page
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/setup");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
 }
 
 // Settings page handler
@@ -516,7 +536,7 @@ void web_server_start(void)
 
     // Start HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 20;  // Increase from default 8 to handle all endpoints
+    config.max_uri_handlers = 24;  // Increase from default 8 to handle all endpoints
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     if (httpd_start(&server, &config) != ESP_OK) {
@@ -539,6 +559,9 @@ void web_server_start(void)
 
     httpd_uri_t logs_page_uri = {.uri = "/logs", .method = HTTP_GET, .handler = logs_page_handler};
     httpd_register_uri_handler(server, &logs_page_uri);
+
+    httpd_uri_t setup_page_uri = {.uri = "/setup", .method = HTTP_GET, .handler = setup_page_handler};
+    httpd_register_uri_handler(server, &setup_page_uri);
 
     httpd_uri_t css_uri = {.uri = "/style.css", .method = HTTP_GET, .handler = css_handler};
     httpd_register_uri_handler(server, &css_uri);
@@ -595,6 +618,13 @@ void web_server_start(void)
     httpd_uri_t api_ota_spiffs_uri = {.uri = "/api/ota/spiffs", .method = HTTP_POST, .handler = ota_spiffs_upload_handler};
     ret = httpd_register_uri_handler(server, &api_ota_spiffs_uri);
     ESP_LOGI(TAG, "Registered /api/ota/spiffs: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
+
+    // Wildcard handler for captive portal (must be last)
+    if (wifi_is_ap_mode()) {
+        httpd_uri_t wildcard_uri = {.uri = "/*", .method = HTTP_GET, .handler = captive_portal_handler};
+        httpd_register_uri_handler(server, &wildcard_uri);
+        ESP_LOGI(TAG, "Captive portal active - wildcard redirect enabled");
+    }
 
     ESP_LOGI(TAG, "Web server started");
 }

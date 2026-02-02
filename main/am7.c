@@ -45,7 +45,6 @@ static bool usb_initialized = false;
 static cdc_acm_dev_hdl_t cdc_dev = NULL;
 static uint8_t rx_buffer[256] = {0};
 static size_t rx_buffer_pos = 0;
-static bool frame_complete = false;
 
 // Forward declaration
 static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out);
@@ -320,10 +319,9 @@ static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
         values[i] = ((uint16_t)data[1 + i*2] << 8) | (uint16_t)data[1 + i*2 + 1];
     }
     
-    // Validate: reject frames with all zeros or clearly invalid data
-    // (all zeros = sensor not initialized or error state)
-    if (values[0] == 0 && values[1] == 0 && values[4] == 0 && values[5] == 0 && values[6] == 0) {
-        ESP_LOGD(TAG, "Rejecting all-zero frame (sensor error)");
+    // Validate: reject frames with invalid data
+    if (values[4] == 0) {
+        ESP_LOGD(TAG, "Rejecting incorrect frame (wrong data)");
         return false;
     }
     
@@ -381,7 +379,7 @@ void am7_task(void *arg)
     
     while (1) {
         // Send request every 3 seconds
-        if (poll_counter % 3 == 0) {
+        if (poll_counter % 5 == 0) {
             if (am7_send_request()) {
                 ESP_LOGD(TAG, "Request sent");
             }

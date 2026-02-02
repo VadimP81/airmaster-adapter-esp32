@@ -9,6 +9,7 @@ idf_component_register(
         "webserver.c"
         "wifi_manager.c"
         "ota.c"
+        "captive_portal.c"
     INCLUDE_DIRS 
         "."
     REQUIRES 

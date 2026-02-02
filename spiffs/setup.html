@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirMaster Setup</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>⚙️ AirMaster Setup</h1>
+    </header>
+
+    <section>
+      <p style="color: #e67e22; font-weight: bold;">⚠️ WiFi Connection Failed</p>
+      <p>Configure your WiFi network to connect the device.</p>
+    </section>
+
+    <form id="wifiSetupForm">
+      <h2>WiFi Configuration</h2>
+      <div class="row">
+        <label for="ssid">Network Name (SSID)</label>
+        <input type="text" id="ssid" name="ssid" required placeholder="Your WiFi name">
+      </div>
+      <div class="row">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required placeholder="WiFi password">
+      </div>
+
+      <div class="row buttons" style="margin-top:20px;">
+        <button type="submit">Connect</button>
+      </div>
+    </form>
+
+    <section>
+      <h2>ℹ️ Instructions</h2>
+      <ol style="font-size: 14px; color: #555; line-height: 1.6;">
+        <li>Enter your WiFi network credentials above</li>
+        <li>Click "Connect" to save and attempt connection</li>
+        <li>The device will reboot and try to connect</li>
+        <li>If successful, you can access it on your network</li>
+        <li>If connection fails, this setup page will appear again</li>
+      </ol>
+    </section>
+  </div>
+
+  <script>
+    document.getElementById('wifiSetupForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const ssid = document.getElementById('ssid').value;
+      const password = document.getElementById('password').value;
+      const btn = document.querySelector('button[type="submit"]');
+      
+      btn.disabled = true;
+      btn.textContent = 'Connecting...';
+      
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wifi: { ssid: ssid, pass: password }
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.ok) {
+          document.body.innerHTML = `
+            <div class="card">
+              <h2>✓ Settings Saved</h2>
+              <p>Device is rebooting and attempting to connect to <strong>${ssid}</strong>.</p>
+              <p>Please wait 15 seconds then reconnect to your WiFi network.</p>
+              <p>The device will be available at its assigned IP address.</p>
+            </div>
+          `;
+        } else {
+          alert('Failed to save settings: ' + (result.error || 'Unknown error'));
+          btn.disabled = false;
+          btn.textContent = 'Connect';
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = 'Connect';
+      }
+    });
+  </script>
+</body>
+</html>
