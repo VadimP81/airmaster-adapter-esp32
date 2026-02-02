@@ -24,17 +24,16 @@ async function refreshSensor() {
     const s = await r.json();
 
     document.getElementById("version").textContent = "v" + (s.version || "?");
-    setStatus("sensor_status", s.connected, s.connected ? "Online" : "Offline");
     document.getElementById("last_update").textContent = (s.last_rx_sec || 0) + " sec ago";
 
     const d = s.data || {};
-    document.getElementById("pm25").textContent = formatValue(d.pm25, " µg/m³");
-    document.getElementById("pm10").textContent = formatValue(d.pm10, " µg/m³");
-    document.getElementById("co2").textContent = formatValue(d.co2, " ppm");
-    document.getElementById("tvoc").textContent = formatValue(d.tvoc, " mg/m³", 2);
-    document.getElementById("hcho").textContent = formatValue(d.hcho, " mg/m³", 3);
-    document.getElementById("temp").textContent = formatValue(d.temp, " °C", 1);
-    document.getElementById("humidity").textContent = formatValue(d.humidity, " %", 1);
+    document.getElementById("pm25").textContent = formatValue(d.pm25, "", 1);
+    document.getElementById("pm10").textContent = formatValue(d.pm10, "", 1);
+    document.getElementById("co2").textContent = formatValue(d.co2, "", 0);
+    document.getElementById("tvoc").textContent = formatValue(d.tvoc, "", 2);
+    document.getElementById("hcho").textContent = formatValue(d.hcho, "", 2);
+    document.getElementById("temp").textContent = formatValue(d.temp, "", 2);
+    document.getElementById("humidity").textContent = formatValue(d.humidity, "", 2);
   } catch (e) {
     console.error("Sensor fetch exception:", e);
   }

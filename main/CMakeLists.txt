@@ -10,6 +10,8 @@ idf_component_register(
         "wifi_manager.c"
         "ota.c"
         "captive_portal.c"
+        "crashlog.c"
+        "spiffs.c"
     INCLUDE_DIRS 
         "."
     REQUIRES 

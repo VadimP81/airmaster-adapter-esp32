@@ -6,6 +6,7 @@
 #include "settings.h"
 #include "webserver.h"
 #include "wifi_manager.h"
+#include "crashlog.h"
 
 static const char *TAG = "MAIN";
 
@@ -15,6 +16,9 @@ void app_main(void)
 
     // Initialize settings (NVS)
     settings_init();
+
+    // Record crash reset reason to flash if applicable
+    crashlog_init();
 
     // Initialize WiFi
     wifi_init();

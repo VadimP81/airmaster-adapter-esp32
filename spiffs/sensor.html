@@ -5,11 +5,57 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sensor - AirMaster Gateway</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .sensor-value {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .sensor-item {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .sensor-label {
+      font-size: 13px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .sensor-reading {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2c3e50;
+    }
+    .sensor-unit {
+      font-size: 12px;
+      color: #999;
+      margin-left: 4px;
+      font-weight: 400;
+    }
+    .section-group {
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+  </style>
 </head>
 <body>
   <div class="card">
     <header>
-      <h1>Sensor Values</h1>
+      <h1>📊 Sensor Values</h1>
       <span id="version">v–</span>
     </header>
 
@@ -22,49 +68,55 @@
     </nav>
 
     <section>
-      <div class="row">
-        <span>AM7 Sensor</span>
-        <span id="sensor_status" class="status gray">Unknown</span>
-      </div>
-      <div class="row">
-        <span>Last Update</span>
-        <span id="last_update">–</span>
+      <div style="background: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+        <div style="font-size: 12px; color: #0277bd; margin-bottom: 4px;">Last Update</div>
+        <div id="last_update" style="font-size: 16px; font-weight: 600; color: #01579b;">–</div>
       </div>
     </section>
 
-    <section>
-      <h2>Air Quality</h2>
-      <div class="row">
-        <span>PM2.5</span>
-        <span id="pm25">–</span>
+    <section class="section-group">
+      <div class="section-title">💨 Air Quality</div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">PM2.5</div>
+          <div class="sensor-reading"><span id="pm25">–</span><span class="sensor-unit">µg/m³</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">PM10</div>
+          <div class="sensor-reading"><span id="pm10">–</span><span class="sensor-unit">µg/m³</span></div>
+        </div>
       </div>
-      <div class="row">
-        <span>PM10</span>
-        <span id="pm10">–</span>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">CO₂</div>
+          <div class="sensor-reading"><span id="co2">–</span><span class="sensor-unit">ppm</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">TVOC</div>
+          <div class="sensor-reading"><span id="tvoc">–</span><span class="sensor-unit">ppb</span></div>
+        </div>
       </div>
-      <div class="row">
-        <span>CO₂</span>
-        <span id="co2">–</span>
-      </div>
-      <div class="row">
-        <span>TVOC</span>
-        <span id="tvoc">–</span>
-      </div>
-      <div class="row">
-        <span>HCHO</span>
-        <span id="hcho">–</span>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">HCHO</div>
+          <div class="sensor-reading"><span id="hcho">–</span><span class="sensor-unit">µg/m³</span></div>
+        </div>
+        <div class="sensor-item">
+        </div>
       </div>
     </section>
 
-    <section>
-      <h2>Environment</h2>
-      <div class="row">
-        <span>Temperature</span>
-        <span id="temp">–</span>
-      </div>
-      <div class="row">
-        <span>Humidity</span>
-        <span id="humidity">–</span>
+    <section class="section-group">
+      <div class="section-title">🌡️ Environment</div>
+      <div class="sensor-value">
+        <div class="sensor-item">
+          <div class="sensor-label">Temperature</div>
+          <div class="sensor-reading"><span id="temp">–</span><span class="sensor-unit">°C</span></div>
+        </div>
+        <div class="sensor-item">
+          <div class="sensor-label">Humidity</div>
+          <div class="sensor-reading"><span id="humidity">–</span><span class="sensor-unit">%</span></div>
+        </div>
       </div>
     </section>
   </div>

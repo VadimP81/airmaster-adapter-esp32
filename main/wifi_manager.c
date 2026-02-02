@@ -1,6 +1,7 @@
 #include "wifi_manager.h"
 #include "settings.h"
 #include "captive_portal.h"
+#include "config.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -17,11 +18,6 @@ static bool connected = false;
 static bool ap_mode = false;
 static int sta_retry_count = 0;
 
-#define AP_SSID "AirMaster-Setup"
-#define AP_PASSWORD ""  // Open network
-#define AP_MAX_CONN 4
-#define MAX_STA_RETRY 5  // Try 5 times before starting AP mode
-
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                               int32_t event_id, void* event_data)
 {
@@ -31,11 +27,11 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         connected = false;
         sta_retry_count++;
         
-        if (sta_retry_count < MAX_STA_RETRY) {
-            ESP_LOGI(TAG, "Disconnected from AP, retry %d/%d...", sta_retry_count, MAX_STA_RETRY);
+        if (sta_retry_count < CONFIG_WIFI_MAX_STA_RETRY) {
+            ESP_LOGI(TAG, "Disconnected from AP, retry %d/%d...", sta_retry_count, CONFIG_WIFI_MAX_STA_RETRY);
             esp_wifi_connect();
         } else {
-            ESP_LOGW(TAG, "Failed to connect after %d attempts, starting AP mode...", MAX_STA_RETRY);
+            ESP_LOGW(TAG, "Failed to connect after %d attempts, starting AP mode...", CONFIG_WIFI_MAX_STA_RETRY);
             wifi_start_ap();
         }
         xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
@@ -100,6 +96,19 @@ bool wifi_is_connected(void)
     return connected;
 }
 
+int wifi_get_rssi(void)
+{
+    if (!connected) {
+        return 0;
+    }
+    wifi_ap_record_t ap_info;
+    esp_err_t err = esp_wifi_sta_get_ap_info(&ap_info);
+    if (err == ESP_OK) {
+        return ap_info.rssi;
+    }
+    return 0;
+}
+
 esp_err_t wifi_connect(const char *ssid, const char *password)
 {
     if (!ssid || strlen(ssid) == 0) {
@@ -145,19 +154,14 @@ esp_err_t wifi_start_ap(void)
     }
     
     // Configure AP
-    wifi_config_t ap_config = {
-        .ap = {
-            .ssid = AP_SSID,
-            .ssid_len = strlen(AP_SSID),
-            .channel = 1,
-            .password = AP_PASSWORD,
-            .max_connection = AP_MAX_CONN,
-            .authmode = WIFI_AUTH_OPEN,
-            .pmf_cfg = {
-                .required = false,
-            },
-        },
-    };
+    wifi_config_t ap_config = {0};
+    memcpy(ap_config.ap.ssid, CONFIG_AP_SSID, strlen(CONFIG_AP_SSID));
+    memcpy(ap_config.ap.password, CONFIG_AP_PASSWORD, strlen(CONFIG_AP_PASSWORD));
+    ap_config.ap.ssid_len = strlen(CONFIG_AP_SSID);
+    ap_config.ap.channel = 1;
+    ap_config.ap.max_connection = CONFIG_AP_MAX_CONNECTIONS;
+    ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    ap_config.ap.pmf_cfg.required = false;
     
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
@@ -167,7 +171,7 @@ esp_err_t wifi_start_ap(void)
     ESP_ERROR_CHECK(esp_wifi_start());
     
     ap_mode = true;
-    ESP_LOGI(TAG, "WiFi AP started. SSID: %s, IP: 192.168.4.1", AP_SSID);
+    ESP_LOGI(TAG, "WiFi AP started. SSID: %s, IP: 192.168.4.1", CONFIG_AP_SSID);
     
     return ESP_OK;
 }

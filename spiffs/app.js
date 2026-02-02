@@ -21,8 +21,24 @@ async function refresh() {
     document.getElementById("version").textContent = "v" + (s.version || "?");
     setStatus("am7", s.am7?.connected, s.am7?.connected ? "Online" : "Offline");
     setStatus("mqtt", s.mqtt?.connected, s.mqtt?.connected ? "Connected" : "Disconnected");
+    setStatus("wifi", s.wifi?.connected, s.wifi?.connected ? "Connected" : "Disconnected");
 
-    document.getElementById("last").textContent = (s.am7?.last_rx_sec || 0) + " sec ago";
+    // Display WiFi signal strength
+    const rssi = s.wifi?.rssi || 0;
+    let signalQuality = "Unknown";
+    if (rssi < -100) {
+      signalQuality = "Very Weak ≡";
+    } else if (rssi < -80) {
+      signalQuality = "Weak ≡≡";
+    } else if (rssi < -60) {
+      signalQuality = "Good ≡≡≡";
+    } else if (rssi < -30) {
+      signalQuality = "Excellent ≡≡≡≡";
+    } else {
+      signalQuality = "Strong ≡≡≡≡≡";
+    }
+    document.getElementById("rssi").textContent = signalQuality + " (" + rssi + " dBm)";
+
     document.getElementById("interval").textContent = (s.interval || 0) + " sec";
     document.getElementById("uptime").textContent = formatUptime(s.uptime || 0);
 

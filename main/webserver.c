@@ -2,7 +2,7 @@
 #include "version.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
-#include "esp_spiffs.h"
+#include "spiffs.h"
 #include "am7.h"
 #include "mqtt.h"
 #include "settings.h"
@@ -11,6 +11,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "cJSON.h"
+#include "config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include <string.h>
@@ -20,16 +21,14 @@ static const char *TAG = "WEB";
 static httpd_handle_t server = NULL;
 
 // Log buffer for storing recent logs
-#define MAX_LOG_LINES 100
-#define MAX_LOG_MESSAGE_LENGTH 200
 
 typedef struct {
     char timestamp[32];  // ISO8601 format: 2026-02-02T12:34:56Z
     char level;          // I/W/E/D
-    char message[MAX_LOG_MESSAGE_LENGTH];
+    char message[CONFIG_MAX_LOG_MESSAGE_LENGTH];
 } log_entry_t;
 
-static log_entry_t log_buffer[MAX_LOG_LINES];
+static log_entry_t log_buffer[CONFIG_MAX_LOG_LINES];
 static int log_write_index = 0;
 static int log_count = 0;
 static SemaphoreHandle_t log_mutex = NULL;
@@ -68,7 +67,7 @@ static int custom_log_vprintf(const char *fmt, va_list args)
         }
         
         // Create temporary buffer for full log
-        char temp_buffer[MAX_LOG_MESSAGE_LENGTH + 50];
+        char temp_buffer[CONFIG_MAX_LOG_MESSAGE_LENGTH + 50];
         vsnprintf(temp_buffer, sizeof(temp_buffer), fmt, args);
         
         // Parse log format: "I (1772) TAG: message"
@@ -85,15 +84,15 @@ static int custom_log_vprintf(const char *fmt, va_list args)
         }
         
         // Copy message and remove trailing newline
-        strncpy(entry->message, msg, MAX_LOG_MESSAGE_LENGTH - 1);
-        entry->message[MAX_LOG_MESSAGE_LENGTH - 1] = '\0';
+        strncpy(entry->message, msg, CONFIG_MAX_LOG_MESSAGE_LENGTH - 1);
+        entry->message[CONFIG_MAX_LOG_MESSAGE_LENGTH - 1] = '\0';
         size_t len = strlen(entry->message);
         if (len > 0 && entry->message[len - 1] == '\n') {
             entry->message[len - 1] = '\0';
         }
         
-        log_write_index = (log_write_index + 1) % MAX_LOG_LINES;
-        if (log_count < MAX_LOG_LINES) {
+        log_write_index = (log_write_index + 1) % CONFIG_MAX_LOG_LINES;
+        if (log_count < CONFIG_MAX_LOG_LINES) {
             log_count++;
         }
         
@@ -210,11 +209,11 @@ static esp_err_t api_logs_handler(httpd_req_t *req)
     cJSON *logs_array = cJSON_CreateArray();
     
     if (log_mutex && xSemaphoreTake(log_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-        int start_index = (log_count < MAX_LOG_LINES) ? 0 : log_write_index;
-        int total_logs = (log_count < MAX_LOG_LINES) ? log_count : MAX_LOG_LINES;
+        int start_index = (log_count < CONFIG_MAX_LOG_LINES) ? 0 : log_write_index;
+        int total_logs = (log_count < CONFIG_MAX_LOG_LINES) ? log_count : CONFIG_MAX_LOG_LINES;
         
         for (int i = 0; i < total_logs; i++) {
-            int index = (start_index + i) % MAX_LOG_LINES;
+            int index = (start_index + i) % CONFIG_MAX_LOG_LINES;
             log_entry_t *entry = &log_buffer[index];
             if (entry->message[0] != '\0') {
                 cJSON *log_obj = cJSON_CreateObject();
@@ -285,6 +284,7 @@ static esp_err_t api_status_handler(httpd_req_t *req)
 
     cJSON *wifi = cJSON_CreateObject();
     cJSON_AddBoolToObject(wifi, "connected", wifi_is_connected());
+    cJSON_AddNumberToObject(wifi, "rssi", wifi_get_rssi());
     cJSON_AddItemToObject(root, "wifi", wifi);
 
     char *json_str = cJSON_Print(root);
@@ -522,21 +522,14 @@ void web_server_start(void)
     }
     
     // Mount SPIFFS
-    esp_vfs_spiffs_conf_t conf = {
-        .base_path = "/spiffs",
-        .partition_label = NULL,
-        .max_files = 10,
-        .format_if_mount_failed = false
-    };
-    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+    esp_err_t ret = spiffs_init();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to mount SPIFFS (%s)", esp_err_to_name(ret));
         return;
     }
 
     // Start HTTP server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.max_uri_handlers = 24;  // Increase from default 8 to handle all endpoints
+    config.max_uri_handlers = CONFIG_HTTPD_MAX_URI_HANDLERS;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     if (httpd_start(&server, &config) != ESP_OK) {

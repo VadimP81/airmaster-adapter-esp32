@@ -4,16 +4,13 @@
 #include "lwip/sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "config.h"
 #include <string.h>
 
 static const char *TAG = "CAPTIVE";
 static int dns_socket = -1;
 static TaskHandle_t dns_task_handle = NULL;
 static bool running = false;
-
-#define DNS_PORT 53
-#define DNS_MAX_LEN 512
-#define AP_IP 0x0104A8C0  // 192.168.4.1 in network byte order (little endian)
 
 // Simple DNS packet structure
 typedef struct {
@@ -27,13 +24,13 @@ typedef struct {
 
 static void dns_server_task(void *pvParameters)
 {
-    char rx_buffer[DNS_MAX_LEN];
-    char tx_buffer[DNS_MAX_LEN];
+    char rx_buffer[CONFIG_DNS_MAX_LEN];
+    char tx_buffer[CONFIG_DNS_MAX_LEN];
     struct sockaddr_in dest_addr;
     
     dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(DNS_PORT);
+    dest_addr.sin_port = htons(CONFIG_DNS_PORT);
     
     dns_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (dns_socket < 0) {
@@ -53,13 +50,13 @@ static void dns_server_task(void *pvParameters)
         return;
     }
     
-    ESP_LOGI(TAG, "DNS server started on port %d", DNS_PORT);
+    ESP_LOGI(TAG, "DNS server started on port %d", CONFIG_DNS_PORT);
     
     while (running) {
         struct sockaddr_in source_addr;
         socklen_t socklen = sizeof(source_addr);
         
-        int len = recvfrom(dns_socket, rx_buffer, sizeof(rx_buffer) - 1, 0,
+        int len = recvfrom(dns_socket, rx_buffer, CONFIG_DNS_MAX_LEN - 1, 0,
                           (struct sockaddr *)&source_addr, &socklen);
         
         if (len < 0) {
@@ -106,7 +103,7 @@ static void dns_server_task(void *pvParameters)
         // Skip question type and class
         pos += 4;
         
-        if (pos + 16 > DNS_MAX_LEN) {
+        if (pos + 16 > CONFIG_DNS_MAX_LEN) {
             continue;  // Response would be too long
         }
         
