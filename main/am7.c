@@ -107,13 +107,24 @@ static esp_err_t cp210x_configure(uint16_t iface_index)
 // Frame can be 15 bytes (0xaa + 14 binary) or longer (hex format)
 static bool cdc_rx_callback(const uint8_t *data, size_t len, void *arg)
 {
+    // Log all received chunks in debug mode
+    if (am7_debug_mode && data && len > 0) {
+        char hex_str[256] = {0};
+        size_t max_bytes = (len > 64) ? 64 : len;
+        for (size_t j = 0; j < max_bytes; j++) {
+            snprintf(hex_str + strlen(hex_str), sizeof(hex_str) - strlen(hex_str) - 1,
+                     "%02X ", data[j]);
+        }
+        ESP_LOGI(TAG, "[DEBUG] RX chunk: %s (len=%d)", hex_str, (int)len);
+    }
+
     // Accumulate raw bytes in buffer
     for (size_t i = 0; i < len; i++) {
         uint8_t b = data[i];
 
-        // Check buffer state: if empty, only accept 'a' (start of 'aa' ASCII) or 0xaa (binary)
+        // Check buffer state: if empty, only accept 0xaa (binary frame start)
         if (rx_buffer_pos == 0) {
-            if (b != 'a' && b != 'A' && b != 0xaa) {
+            if (b != 0xaa) {
                 // Skip junk bytes
                 continue;
             }
@@ -134,10 +145,13 @@ static bool cdc_rx_callback(const uint8_t *data, size_t len, void *arg)
         bool should_parse = false;
         
         // Binary frame: 0xaa prefix + data ending with \r\n
-        // Full response is much longer than initially thought (~54 bytes)
-        if ((b == '\r' || b == '\n') && rx_buffer_pos >= 3) {
+        // Only parse on proper CRLF termination
+        if (b == '\n' && rx_buffer_pos >= 3) {
             if (rx_buffer[0] == 0xaa) {
-                should_parse = true;
+                // Require \r before \n (proper CRLF)
+                if (rx_buffer_pos >= 2 && rx_buffer[rx_buffer_pos - 2] == '\r') {
+                    should_parse = true;
+                }
             } else {
                 // Not a valid frame, discard
                 rx_buffer_pos = 0;
@@ -157,14 +171,20 @@ static bool cdc_rx_callback(const uint8_t *data, size_t len, void *arg)
                 ESP_LOGI(TAG, "[DEBUG] Raw RX: %s (len=%d)", hex_str, (int)rx_buffer_pos);
             }
             
+            // Trim CR/LF terminators before parsing
+            size_t frame_len = rx_buffer_pos;
+            while (frame_len > 0 && (rx_buffer[frame_len - 1] == '\r' || rx_buffer[frame_len - 1] == '\n')) {
+                frame_len--;
+            }
+
             // Try to parse this frame
-            if (am7_parse_data(rx_buffer, rx_buffer_pos, &am7_data)) {
+            if (am7_parse_data(rx_buffer, frame_len, &am7_data)) {
                 last_rx_sec = 0;
                 am7_connected = true;
                 ESP_LOGI(TAG, "Parsed: PM2.5=%d PM10=%d HCHO=%.3f TVOC=%.2f CO2=%d Temp=%.1f Hum=%.1f",
                          am7_data.pm25, am7_data.pm10, am7_data.hcho, am7_data.tvoc, am7_data.co2, am7_data.temp, am7_data.humidity);
             }
-            
+
             // Reset for next frame
             rx_buffer_pos = 0;
             memset(rx_buffer, 0, sizeof(rx_buffer));
@@ -316,12 +336,13 @@ static bool am7_send_request(void)
 }
 
 // Parse AM7 sensor data from binary response
-// Response format: 0xaa (1 byte) + 7 uint16_t values (14 bytes) + extra fields (battery, runtime, particle counts)
+// Response format: 0xaa (1 byte) + 7 uint16_t values (14 bytes)
+// Extended format: + battery, runtime, particle counts (+ checksum at bytes 36-37)
 // Values: PM2.5, PM10, HCHO, TVOC, CO2, Temp, Humidity (all big-endian uint16_t)
-// Checksum: sum of bytes 1-36 (big-endian uint16 at bytes 36-37)
 static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
 {
-    if (!data || !out || len < 15) {
+    // Full frame: 0xAA + 14 bytes sensors + 22 bytes extended + 2 bytes checksum = 39 bytes (38 after CRLF trim)
+    if (!data || !out || len < 38) {
         return false;
     }
 
@@ -330,23 +351,22 @@ static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
         return false;
     }
 
-    // Validate checksum if frame is long enough (at least 38 bytes for checksum)
-    if (len >= 38) {
-        uint16_t calculated_sum = 0;
-        // Sum bytes 0-35 (includes 0xAA header through reserved fields)
-        for (int i = 0; i < 36; i++) {
-            calculated_sum += data[i];
-        }
-        uint16_t frame_checksum = ((uint16_t)data[36] << 8) | (uint16_t)data[37];
-        if (calculated_sum != frame_checksum) {
-            ESP_LOGW(TAG, "Checksum failed: calculated=0x%04X, frame=0x%04X", calculated_sum, frame_checksum);
-            return false;
-        }
+    // Validate checksum (always present in full frame)
+    uint16_t calculated_sum = 0;
+    // Sum bytes 0-35 (includes 0xAA header through reserved fields)
+    for (int i = 0; i < 36; i++) {
+        calculated_sum += data[i];
+    }
+    uint16_t frame_checksum = ((uint16_t)data[36] << 8) | (uint16_t)data[37];
+    if (calculated_sum != frame_checksum) {
+        ESP_LOGW(TAG, "Checksum failed: calculated=0x%04X, frame=0x%04X", calculated_sum, frame_checksum);
+        return false;
     }
 
-    // Extract 7 uint16_t values starting at byte 1 (big-endian)
-    uint16_t values[7];
-    for (int i = 0; i < 7; i++) {
+    // Extract up to 7 uint16_t values starting at byte 1 (big-endian)
+    uint16_t values[7] = {0};
+    size_t available_pairs = 7;
+    for (size_t i = 0; i < available_pairs; i++) {
         values[i] = ((uint16_t)data[1 + i*2] << 8) | (uint16_t)data[1 + i*2 + 1];
     }
     
@@ -365,28 +385,16 @@ static bool am7_parse_data(const uint8_t *data, size_t len, am7_data_t *out)
     out->temp = values[5] / 100.0;   // Temperature in °C
     out->humidity = values[6] / 100.0; // Humidity in %
 
-    // Extended fields (requires at least 31 bytes for particle counts)
-    if (len >= 31) {
-        out->battery_status = data[15];
-        out->battery_level = data[16];
-        out->runtime_hours = ((uint16_t)data[17] << 8) | (uint16_t)data[18];
-        out->pc03 = ((uint16_t)data[19] << 8) | (uint16_t)data[20];
-        out->pc05 = ((uint16_t)data[21] << 8) | (uint16_t)data[22];
-        out->pc10 = ((uint16_t)data[23] << 8) | (uint16_t)data[24];
-        out->pc25 = ((uint16_t)data[25] << 8) | (uint16_t)data[26];
-        out->pc50 = ((uint16_t)data[27] << 8) | (uint16_t)data[28];
-        out->pc100 = ((uint16_t)data[29] << 8) | (uint16_t)data[30];
-    } else {
-        out->battery_status = 0;
-        out->battery_level = 0;
-        out->runtime_hours = 0;
-        out->pc03 = 0;
-        out->pc05 = 0;
-        out->pc10 = 0;
-        out->pc25 = 0;
-        out->pc50 = 0;
-        out->pc100 = 0;
-    }
+    // Extended fields
+    out->battery_status = data[15];
+    out->battery_level = data[16];
+    out->runtime_hours = ((uint16_t)data[17] << 8) | (uint16_t)data[18];
+    out->pc03 = ((uint16_t)data[19] << 8) | (uint16_t)data[20];
+    out->pc05 = ((uint16_t)data[21] << 8) | (uint16_t)data[22];
+    out->pc10 = ((uint16_t)data[23] << 8) | (uint16_t)data[24];
+    out->pc25 = ((uint16_t)data[25] << 8) | (uint16_t)data[26];
+    out->pc50 = ((uint16_t)data[27] << 8) | (uint16_t)data[28];
+    out->pc100 = ((uint16_t)data[29] << 8) | (uint16_t)data[30];
 
     return true;
 }
