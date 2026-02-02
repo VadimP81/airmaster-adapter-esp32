@@ -73,6 +73,14 @@
       <span id="version">v–</span>
     </header>
 
+    <nav class="tabs">
+      <a class="tab" href="/">Status</a>
+      <a class="tab" href="/sensor">Sensor</a>
+      <a class="tab" href="/settings">Settings</a>
+      <a class="tab active" href="/ota">System</a>
+      <a class="tab" href="/logs">Logs</a>
+    </nav>
+
     <div id="alertSuccess" class="alert success"></div>
     <div id="alertError" class="alert error"></div>
     <div id="alertInfo" class="alert info"></div>
@@ -94,18 +102,36 @@
     </section>
 
     <section>
+      <h2>Software Upload</h2>
+      <p>Upload the web UI package (SPIFFS image, .bin) to update the interface.</p>
+      
+      <div class="file-input" onclick="document.getElementById('spiffsFileInput').click()">
+        <input type="file" id="spiffsFileInput" accept=".bin" style="display:none">
+        <span id="spiffsFileLabel">📁 Click to select software file</span>
+      </div>
+
+      <div class="progress-container" id="spiffsProgressContainer" style="display:none">
+        <div class="progress-bar" id="spiffsProgressBar">0%</div>
+      </div>
+
+      <button class="btn-upload" id="spiffsUploadBtn" disabled>Upload Software</button>
+    </section>
+
+    <section>
       <h2>⚠️ Important Notes</h2>
       <ul style="font-size: 14px; color: #555;">
         <li>Do not disconnect power during update</li>
-        <li>Update takes up to 1 minut</li>
+        <li>Update takes up to 1 minute</li>
         <li>Device will reboot automatically</li>
         <li>Web interface may be unreachable during update</li>
       </ul>
     </section>
 
-    <footer>
-      <button onclick="location.href='/'">← Back to Dashboard</button>
-    </footer>
+    <section>
+      <h2>System</h2>
+      <p>Reboot the device to apply changes or recover from issues.</p>
+      <button class="btn-upload" type="button" onclick="rebootDevice()">🔄 Reboot Device</button>
+    </section>
   </div>
 
   <script>
@@ -114,14 +140,29 @@
     const uploadBtn = document.getElementById('uploadBtn');
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
+
+    const spiffsFileInput = document.getElementById('spiffsFileInput');
+    const spiffsFileLabel = document.getElementById('spiffsFileLabel');
+    const spiffsUploadBtn = document.getElementById('spiffsUploadBtn');
+    const spiffsProgressContainer = document.getElementById('spiffsProgressContainer');
+    const spiffsProgressBar = document.getElementById('spiffsProgressBar');
     
     let selectedFile = null;
+    let selectedSpiffsFile = null;
 
     fileInput.addEventListener('change', (e) => {
       selectedFile = e.target.files[0];
       if (selectedFile) {
         fileLabel.textContent = `✓ ${selectedFile.name} (${(selectedFile.size/1024/1024).toFixed(2)} MB)`;
         uploadBtn.disabled = false;
+      }
+    });
+
+    spiffsFileInput.addEventListener('change', (e) => {
+      selectedSpiffsFile = e.target.files[0];
+      if (selectedSpiffsFile) {
+        spiffsFileLabel.textContent = `✓ ${selectedSpiffsFile.name} (${(selectedSpiffsFile.size/1024/1024).toFixed(2)} MB)`;
+        spiffsUploadBtn.disabled = false;
       }
     });
 
@@ -174,6 +215,55 @@
       }
     });
 
+    spiffsUploadBtn.addEventListener('click', async () => {
+      if (!selectedSpiffsFile) return;
+
+      if (!confirm('Start software upload? Device will reboot after completion.')) {
+        return;
+      }
+
+      spiffsUploadBtn.disabled = true;
+      hideAlerts();
+      spiffsProgressContainer.style.display = 'block';
+
+      try {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            spiffsProgressBar.style.width = percent + '%';
+            spiffsProgressBar.textContent = percent + '%';
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            showAlert('success', '✓ Software upload successful! Device is rebooting...');
+            setTimeout(() => {
+              showAlert('info', 'Waiting for device to come back online...');
+              setTimeout(() => location.href = '/', 10000);
+            }, 3000);
+          } else {
+            showAlert('error', 'Software upload failed: ' + xhr.responseText);
+            resetSpiffsUpload();
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          showAlert('error', 'Upload failed. Check network connection.');
+          resetSpiffsUpload();
+        });
+
+        xhr.open('POST', '/api/ota/spiffs');
+        xhr.send(selectedSpiffsFile);
+
+      } catch (error) {
+        showAlert('error', 'Error: ' + error.message);
+        resetSpiffsUpload();
+      }
+    });
+
     function showAlert(type, message) {
       const alertEl = document.getElementById('alert' + type.charAt(0).toUpperCase() + type.slice(1));
       alertEl.textContent = message;
@@ -189,6 +279,25 @@
       progressContainer.style.display = 'none';
       progressBar.style.width = '0%';
       progressBar.textContent = '0%';
+    }
+
+    function resetSpiffsUpload() {
+      spiffsUploadBtn.disabled = false;
+      spiffsProgressContainer.style.display = 'none';
+      spiffsProgressBar.style.width = '0%';
+      spiffsProgressBar.textContent = '0%';
+    }
+
+    function rebootDevice() {
+      if (!confirm('Reboot the device now?')) {
+        return;
+      }
+      fetch('/api/reboot', { method: 'POST' })
+        .then(() => {
+          showAlert('info', 'Rebooting... Please wait about 10 seconds.');
+          setTimeout(() => location.href = '/', 10000);
+        })
+        .catch(() => showAlert('error', 'Failed to reboot device.'));
     }
 
     // Load version

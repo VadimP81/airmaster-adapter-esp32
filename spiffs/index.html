@@ -13,6 +13,14 @@
       <span id="version">v–</span>
     </header>
 
+    <nav class="tabs">
+      <a class="tab active" href="/">Status</a>
+      <a class="tab" href="/sensor">Sensor</a>
+      <a class="tab" href="/settings">Settings</a>
+      <a class="tab" href="/ota">System</a>
+      <a class="tab" href="/logs">Logs</a>
+    </nav>
+
     <section>
       <h2>Status</h2>
       <div class="row">
@@ -40,12 +48,6 @@
       </div>
     </section>
 
-    <footer>
-      <button onclick="location.href='/settings'">⚙ Settings</button>
-      <button onclick="location.href='/ota'">🔄 Update</button>
-      <button onclick="location.href='/logs'">📋 Logs</button>
-      <button onclick="rebootDevice()">🔄 Reboot</button>
-    </footer>
   </div>
 
   <script src="app.js"></script>

@@ -63,11 +63,18 @@
       <h1>System Logs</h1>
     </header>
 
+    <nav class="tabs">
+      <a class="tab" href="/">Status</a>
+      <a class="tab" href="/sensor">Sensor</a>
+      <a class="tab" href="/settings">Settings</a>
+      <a class="tab" href="/ota">System</a>
+      <a class="tab active" href="/logs">Logs</a>
+    </nav>
+
     <section>
       <div class="controls">
         <button onclick="refreshLogs()">🔄 Refresh</button>
         <button onclick="clearLogs()">🗑 Clear</button>
-        <button onclick="rebootDevice()">🔄 Reboot Device</button>
         <label>
           <input type="checkbox" id="autoScroll" checked>
           Auto-scroll
@@ -79,9 +86,6 @@
       </div>
     </section>
 
-    <footer>
-      <button onclick="location.href='/'">← Back</button>
-    </footer>
   </div>
 
   <script>
@@ -193,20 +197,6 @@
           }
         })
         .catch(error => console.error('Error clearing logs:', error));
-    }
-    
-    function rebootDevice() {
-      if (confirm('Are you sure you want to reboot the device?')) {
-        fetch('/api/reboot', { method: 'POST' })
-          .then(response => response.json())
-          .then(data => {
-            if (data.ok) {
-              document.getElementById('logContainer').innerHTML = 
-                '<div class="log-line">Device rebooting...</div>';
-            }
-          })
-          .catch(error => console.error('Error rebooting device:', error));
-      }
     }
     
     // Auto-refresh logs every 2 seconds

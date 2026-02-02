@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sensor - AirMaster Gateway</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>Sensor Values</h1>
+      <span id="version">v–</span>
+    </header>
+
+    <nav class="tabs">
+      <a class="tab" href="/">Status</a>
+      <a class="tab active" href="/sensor">Sensor</a>
+      <a class="tab" href="/settings">Settings</a>
+      <a class="tab" href="/ota">System</a>
+      <a class="tab" href="/logs">Logs</a>
+    </nav>
+
+    <section>
+      <div class="row">
+        <span>AM7 Sensor</span>
+        <span id="sensor_status" class="status gray">Unknown</span>
+      </div>
+      <div class="row">
+        <span>Last Update</span>
+        <span id="last_update">–</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Air Quality</h2>
+      <div class="row">
+        <span>PM2.5</span>
+        <span id="pm25">–</span>
+      </div>
+      <div class="row">
+        <span>PM10</span>
+        <span id="pm10">–</span>
+      </div>
+      <div class="row">
+        <span>CO₂</span>
+        <span id="co2">–</span>
+      </div>
+      <div class="row">
+        <span>TVOC</span>
+        <span id="tvoc">–</span>
+      </div>
+      <div class="row">
+        <span>HCHO</span>
+        <span id="hcho">–</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Environment</h2>
+      <div class="row">
+        <span>Temperature</span>
+        <span id="temp">–</span>
+      </div>
+      <div class="row">
+        <span>Humidity</span>
+        <span id="humidity">–</span>
+      </div>
+    </section>
+  </div>
+
+  <script src="sensor.js"></script>
+</body>
+</html>

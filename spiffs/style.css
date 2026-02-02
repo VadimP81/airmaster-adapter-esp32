@@ -27,6 +27,35 @@ header {
   margin-bottom: 12px;
 }
 
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 16px;
+  background: #f0f2f5;
+  padding: 6px;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.tabs .tab {
+  flex: 1 1 30%;
+  text-align: center;
+  padding: 8px 6px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #555;
+  font-weight: 600;
+  font-size: 0.9em;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+}
+
+.tabs .tab.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+
 h1 {
   font-size: 1.2em;
   margin: 0;

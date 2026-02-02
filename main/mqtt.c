@@ -7,13 +7,17 @@
 #include "freertos/task.h"
 #include "mqtt_client.h"
 #include "cJSON.h"
+#include "esp_timer.h"
 #include <string.h>
+#include <time.h>
+#include <sys/time.h>
 
 static const char *TAG = "MQTT";
 
 bool mqtt_connected = false;
 static esp_mqtt_client_handle_t client = NULL;
 static bool ha_discovery_sent = false;
+static uint64_t last_mqtt_publish_time = 0;
 
 // MQTT event handler
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
@@ -118,9 +122,11 @@ bool mqtt_publish_ha_discovery(void)
         {"PM10", "pm10", "{{ value_json.pm10 }}", "µg/m³", "pm10", "measurement"},
         {"TVOC", "tvoc", "{{ value_json.tvoc }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"HCHO", "hcho", "{{ value_json.hcho }}", "mg/m³", "volatile_organic_compounds", "measurement"},
+        {"Uptime", "uptime", "{{ value_json.uptime }}", "s", "duration", "total_increasing"},
+        {"Last Update", "last_update", "{{ value_json.last_update }}", "s", "duration", "measurement"},
     };
 
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 9; i++) {
         char config_topic[128];
         snprintf(config_topic, sizeof(config_topic), 
                  "homeassistant/sensor/%s_%s/config", device_id, sensors[i].sensor_type);
@@ -202,15 +208,26 @@ void mqtt_task(void *arg)
                 ha_discovery_sent = true;
             }
 
-            char payload[256];
+            // Get uptime in seconds
+            uint64_t uptime_sec = esp_timer_get_time() / 1000000;
+            
+            // Calculate seconds since last successful MQTT publish
+            int last_update_sec = 0;
+            if (last_mqtt_publish_time > 0) {
+                last_update_sec = (int)(uptime_sec - last_mqtt_publish_time);
+            }
+
+            char payload[320];
             snprintf(payload, sizeof(payload),
-                     "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"pm10\":%d,\"tvoc\":%.2f,\"hcho\":%.3f}",
+                     "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"pm10\":%d,\"tvoc\":%.2f,\"hcho\":%.3f,\"uptime\":%llu,\"last_update\":%d}",
                      am7_data.temp, am7_data.humidity,
-                     am7_data.co2, am7_data.pm25, am7_data.pm10, am7_data.tvoc, am7_data.hcho);
+                     am7_data.co2, am7_data.pm25, am7_data.pm10, am7_data.tvoc, am7_data.hcho,
+                     (unsigned long long)uptime_sec, last_update_sec);
 
             if(!mqtt_publish(settings_get_mqtt_topic(), payload)) {
                 ESP_LOGW(TAG, "MQTT publish failed");
             } else {
+                last_mqtt_publish_time = uptime_sec; // Update last successful publish time
                 ESP_LOGD(TAG, "Published: %s", payload);
             }
         }

@@ -3,7 +3,7 @@
 
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 3
-#define VERSION_BUILD 1
-#define VERSION_STRING "1.3.1"
-#define BUILD_DATE "2026-02-02 14:46:15"
-#define GIT_HASH "0df17d0"
+#define VERSION_BUILD 9
+#define VERSION_STRING "1.3.9"
+#define BUILD_DATE "2026-02-02 18:50:22"
+#define GIT_HASH "ba512f4"

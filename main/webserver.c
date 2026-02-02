@@ -156,6 +156,11 @@ static esp_err_t logs_page_handler(httpd_req_t *req)
     return serve_file(req, "/spiffs/logs.html", "text/html");
 }
 
+static esp_err_t sensor_page_handler(httpd_req_t *req)
+{
+    return serve_file(req, "/spiffs/sensor.html", "text/html");
+}
+
 // CSS handler
 static esp_err_t css_handler(httpd_req_t *req)
 {
@@ -171,6 +176,11 @@ static esp_err_t app_js_handler(httpd_req_t *req)
 static esp_err_t settings_js_handler(httpd_req_t *req)
 {
     return serve_file(req, "/spiffs/settings.js", "application/javascript");
+}
+
+static esp_err_t sensor_js_handler(httpd_req_t *req)
+{
+    return serve_file(req, "/spiffs/sensor.js", "application/javascript");
 }
 
 // API: Get logs
@@ -261,6 +271,33 @@ static esp_err_t api_status_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, json_str);
     
+    cJSON_free(json_str);
+    cJSON_Delete(root);
+    return ESP_OK;
+}
+
+// API: Sensor values
+static esp_err_t api_sensor_handler(httpd_req_t *req)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "version", VERSION_STRING);
+    cJSON_AddBoolToObject(root, "connected", am7_connected);
+    cJSON_AddNumberToObject(root, "last_rx_sec", last_rx_sec);
+
+    cJSON *data = cJSON_CreateObject();
+    cJSON_AddNumberToObject(data, "temp", am7_data.temp);
+    cJSON_AddNumberToObject(data, "humidity", am7_data.humidity);
+    cJSON_AddNumberToObject(data, "co2", am7_data.co2);
+    cJSON_AddNumberToObject(data, "pm25", am7_data.pm25);
+    cJSON_AddNumberToObject(data, "pm10", am7_data.pm10);
+    cJSON_AddNumberToObject(data, "tvoc", am7_data.tvoc);
+    cJSON_AddNumberToObject(data, "hcho", am7_data.hcho);
+    cJSON_AddItemToObject(root, "data", data);
+
+    char *json_str = cJSON_Print(root);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json_str);
+
     cJSON_free(json_str);
     cJSON_Delete(root);
     return ESP_OK;
@@ -468,7 +505,7 @@ void web_server_start(void)
     esp_vfs_spiffs_conf_t conf = {
         .base_path = "/spiffs",
         .partition_label = NULL,
-        .max_files = 5,
+        .max_files = 10,
         .format_if_mount_failed = false
     };
     esp_err_t ret = esp_vfs_spiffs_register(&conf);
@@ -494,6 +531,9 @@ void web_server_start(void)
     httpd_uri_t settings_uri = {.uri = "/settings", .method = HTTP_GET, .handler = settings_page_handler};
     httpd_register_uri_handler(server, &settings_uri);
 
+    httpd_uri_t sensor_page_uri = {.uri = "/sensor", .method = HTTP_GET, .handler = sensor_page_handler};
+    httpd_register_uri_handler(server, &sensor_page_uri);
+
     httpd_uri_t ota_page_uri = {.uri = "/ota", .method = HTTP_GET, .handler = ota_page_handler};
     httpd_register_uri_handler(server, &ota_page_uri);
 
@@ -509,9 +549,16 @@ void web_server_start(void)
     httpd_uri_t settings_js_uri = {.uri = "/settings.js", .method = HTTP_GET, .handler = settings_js_handler};
     httpd_register_uri_handler(server, &settings_js_uri);
 
+    httpd_uri_t sensor_js_uri = {.uri = "/sensor.js", .method = HTTP_GET, .handler = sensor_js_handler};
+    httpd_register_uri_handler(server, &sensor_js_uri);
+
     httpd_uri_t api_status_uri = {.uri = "/api/status", .method = HTTP_GET, .handler = api_status_handler};
     ret = httpd_register_uri_handler(server, &api_status_uri);
     ESP_LOGI(TAG, "Registered /api/status: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
+
+    httpd_uri_t api_sensor_uri = {.uri = "/api/sensor", .method = HTTP_GET, .handler = api_sensor_handler};
+    ret = httpd_register_uri_handler(server, &api_sensor_uri);
+    ESP_LOGI(TAG, "Registered /api/sensor: %s", ret == ESP_OK ? "OK" : esp_err_to_name(ret));
 
     httpd_uri_t api_logs_uri = {.uri = "/api/logs", .method = HTTP_GET, .handler = api_logs_handler};
     ret = httpd_register_uri_handler(server, &api_logs_uri);
