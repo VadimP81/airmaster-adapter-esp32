@@ -17,6 +17,7 @@ static const int WIFI_CONNECTED_BIT = BIT0;
 static bool connected = false;
 static bool ap_mode = false;
 static int sta_retry_count = 0;
+static bool ever_connected = false;
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                               int32_t event_id, void* event_data)
@@ -31,14 +32,21 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Disconnected from AP, retry %d/%d...", sta_retry_count, CONFIG_WIFI_MAX_STA_RETRY);
             esp_wifi_connect();
         } else {
-            ESP_LOGW(TAG, "Failed to connect after %d attempts, starting AP mode...", CONFIG_WIFI_MAX_STA_RETRY);
-            wifi_start_ap();
+            if (!ever_connected) {
+                ESP_LOGW(TAG, "Failed to connect after %d attempts, starting AP mode...", CONFIG_WIFI_MAX_STA_RETRY);
+                wifi_start_ap();
+            } else {
+                ESP_LOGW(TAG, "Failed to reconnect after %d attempts, staying in STA mode...", CONFIG_WIFI_MAX_STA_RETRY);
+                sta_retry_count = 0;
+                esp_wifi_connect();
+            }
         }
         xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         connected = true;
+        ever_connected = true;
         sta_retry_count = 0;  // Reset retry counter on successful connection
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
@@ -119,6 +127,7 @@ esp_err_t wifi_connect(const char *ssid, const char *password)
     // Reset retry counter when attempting new connection
     sta_retry_count = 0;
     ap_mode = false;
+    ever_connected = false;
 
     wifi_config_t wifi_config = {0};
     strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);

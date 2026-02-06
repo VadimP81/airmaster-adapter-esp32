@@ -17,6 +17,16 @@
       padding: 12px;
       border-radius: 8px;
       text-align: center;
+      border: 1px solid transparent;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .sensor-item.aq-warn {
+      background: #fff8e1;
+      border-color: #f1c40f;
+    }
+    .sensor-item.aq-bad {
+      background: #fdecea;
+      border-color: #e74c3c;
     }
     .sensor-label {
       font-size: 13px;
@@ -77,27 +87,27 @@
     <section class="section-group">
       <div class="section-title">💨 Air Quality</div>
       <div class="sensor-value">
-        <div class="sensor-item">
+        <div class="sensor-item" id="aq-pm25">
           <div class="sensor-label">PM2.5</div>
           <div class="sensor-reading"><span id="pm25">–</span><span class="sensor-unit">µg/m³</span></div>
         </div>
-        <div class="sensor-item">
+        <div class="sensor-item" id="aq-pm10">
           <div class="sensor-label">PM10</div>
           <div class="sensor-reading"><span id="pm10">–</span><span class="sensor-unit">µg/m³</span></div>
         </div>
       </div>
       <div class="sensor-value">
-        <div class="sensor-item">
+        <div class="sensor-item" id="aq-co2">
           <div class="sensor-label">CO₂</div>
           <div class="sensor-reading"><span id="co2">–</span><span class="sensor-unit">ppm</span></div>
         </div>
-        <div class="sensor-item">
+        <div class="sensor-item" id="aq-tvoc">
           <div class="sensor-label">TVOC</div>
           <div class="sensor-reading"><span id="tvoc">–</span><span class="sensor-unit">ppb</span></div>
         </div>
       </div>
       <div class="sensor-value">
-        <div class="sensor-item">
+        <div class="sensor-item" id="aq-hcho">
           <div class="sensor-label">HCHO</div>
           <div class="sensor-reading"><span id="hcho">–</span><span class="sensor-unit">µg/m³</span></div>
         </div>

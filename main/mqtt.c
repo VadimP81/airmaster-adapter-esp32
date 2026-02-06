@@ -123,7 +123,7 @@ bool mqtt_publish_ha_discovery(void)
         {"TVOC", "tvoc", "{{ value_json.tvoc }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"HCHO", "hcho", "{{ value_json.hcho }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"Battery Status", "battery_status", "{{ 'Charging' if value_json.battery_status == 1 else 'Battery' }}", "", NULL, NULL},
-        {"Battery Level", "battery_level", "{{ value_json.battery_level }}", "", "battery", "measurement"},
+        {"Battery Level", "battery_level", "{{ value_json.battery_level * 25 }}", "%", "battery", "measurement"},
         {"Runtime Hours", "runtime_hours", "{{ value_json.runtime_hours }}", "h", "duration", "total_increasing"},
         {"Particles >0.3µm", "pc03", "{{ value_json.pc03 }}", "", NULL, "measurement"},
         {"Particles >0.5µm", "pc05", "{{ value_json.pc05 }}", "", NULL, "measurement"},
@@ -147,9 +147,9 @@ bool mqtt_publish_ha_discovery(void)
         snprintf(unique_id, sizeof(unique_id), "%s_%s", device_id, sensors[i].sensor_type);
         cJSON_AddStringToObject(config, "unique_id", unique_id);
         
-        char object_id[64];
-        snprintf(object_id, sizeof(object_id), "%s_%s", device_id, sensors[i].sensor_type);
-        cJSON_AddStringToObject(config, "object_id", object_id);
+        char default_entity_id[96];
+        snprintf(default_entity_id, sizeof(default_entity_id), "sensor.%s_%s", device_id, sensors[i].sensor_type);
+        cJSON_AddStringToObject(config, "default_entity_id", default_entity_id);
         
         cJSON_AddStringToObject(config, "state_topic", state_topic);
         cJSON_AddStringToObject(config, "value_template", sensors[i].value_template);
