@@ -60,6 +60,26 @@
       padding-bottom: 8px;
       border-bottom: 2px solid #e0e0e0;
     }
+    .gauge-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .gauge {
+      width: 100px;
+      height: 60px;
+    }
+    .gauge-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: #2c3e50;
+      padding-right: 3px;
+    }
+    .gauge-unit {
+      font-size: 11px;
+      color: #999;
+    }
   </style>
 </head>
 <body>
@@ -89,27 +109,42 @@
       <div class="sensor-value">
         <div class="sensor-item" id="aq-pm25">
           <div class="sensor-label">PM2.5</div>
-          <div class="sensor-reading"><span id="pm25">–</span><span class="sensor-unit">µg/m³</span></div>
+          <div class="gauge-container">
+            <svg class="gauge" id="gauge-pm25"></svg>
+            <div><span class="gauge-value" id="pm25">–</span><span class="gauge-unit">µg/m³</span></div>
+          </div>
         </div>
         <div class="sensor-item" id="aq-pm10">
           <div class="sensor-label">PM10</div>
-          <div class="sensor-reading"><span id="pm10">–</span><span class="sensor-unit">µg/m³</span></div>
+          <div class="gauge-container">
+            <svg class="gauge" id="gauge-pm10"></svg>
+            <div><span class="gauge-value" id="pm10">–</span><span class="gauge-unit">µg/m³</span></div>
+          </div>
         </div>
       </div>
       <div class="sensor-value">
         <div class="sensor-item" id="aq-co2">
           <div class="sensor-label">CO₂</div>
-          <div class="sensor-reading"><span id="co2">–</span><span class="sensor-unit">ppm</span></div>
+          <div class="gauge-container">
+            <svg class="gauge" id="gauge-co2"></svg>
+            <div><span class="gauge-value" id="co2">–</span><span class="gauge-unit">ppm</span></div>
+          </div>
         </div>
         <div class="sensor-item" id="aq-tvoc">
           <div class="sensor-label">TVOC</div>
-          <div class="sensor-reading"><span id="tvoc">–</span><span class="sensor-unit">ppb</span></div>
+          <div class="gauge-container">
+            <svg class="gauge" id="gauge-tvoc"></svg>
+            <div><span class="gauge-value" id="tvoc">–</span><span class="gauge-unit">mg/m³</span></div>
+          </div>
         </div>
       </div>
       <div class="sensor-value">
         <div class="sensor-item" id="aq-hcho">
           <div class="sensor-label">HCHO</div>
-          <div class="sensor-reading"><span id="hcho">–</span><span class="sensor-unit">µg/m³</span></div>
+          <div class="gauge-container">
+            <svg class="gauge" id="gauge-hcho"></svg>
+            <div><span class="gauge-value" id="hcho">–</span><span class="gauge-unit">mg/m³</span></div>
+          </div>
         </div>
         <div class="sensor-item">
         </div>
