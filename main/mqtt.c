@@ -124,7 +124,7 @@ bool mqtt_publish_ha_discovery(void)
         {"HCHO", "hcho", "{{ value_json.hcho }}", "mg/m³", "volatile_organic_compounds", "measurement"},
         {"Battery Status", "battery_status", "{{ 'Charging' if value_json.battery_status == 1 else 'Battery' }}", "", NULL, NULL},
         {"Battery Level", "battery_level", "{{ value_json.battery_level * 25 }}", "%", "battery", "measurement"},
-        {"Runtime Hours", "runtime_hours", "{{ value_json.runtime_hours }}", "h", "duration", "total_increasing"},
+        // runtime_hours intentionally excluded from MQTT discovery/payload (always 0 on AM7)
         {"Particles >0.3µm", "pc03", "{{ value_json.pc03 }}", "", NULL, "measurement"},
         {"Particles >0.5µm", "pc05", "{{ value_json.pc05 }}", "", NULL, "measurement"},
         {"Particles >1.0µm", "pc10", "{{ value_json.pc10 }}", "", NULL, "measurement"},
@@ -233,12 +233,13 @@ void mqtt_task(void *arg)
             char payload[512];
             snprintf(payload, sizeof(payload),
                      "{\"temp\":%.1f,\"humidity\":%.1f,\"co2\":%d,\"pm25\":%d,\"pm10\":%d,\"tvoc\":%.2f,\"hcho\":%.3f,"
-                     "\"battery_status\":%d,\"battery_level\":%d,\"runtime_hours\":%d,"
+                     "\"battery_status\":%d,\"battery_level\":%d,"
                      "\"pc03\":%d,\"pc05\":%d,\"pc10\":%d,\"pc25\":%d,\"pc50\":%d,\"pc100\":%d,"
                      "\"uptime\":%llu,\"last_update\":%d}",
                      am7_data.temp, am7_data.humidity,
                      am7_data.co2, am7_data.pm25, am7_data.pm10, am7_data.tvoc, am7_data.hcho,
-                     am7_data.battery_status, am7_data.battery_level, am7_data.runtime_hours,
+                     // runtime_hours intentionally omitted from MQTT payload (always 0 on AM7)
+                     am7_data.battery_status, am7_data.battery_level,
                      am7_data.pc03, am7_data.pc05, am7_data.pc10, am7_data.pc25, am7_data.pc50, am7_data.pc100,
                      (unsigned long long)uptime_sec, last_update_sec);
 

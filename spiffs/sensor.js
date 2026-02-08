@@ -79,7 +79,7 @@ function drawGauge(svgId, value, max, warn, bad) {
   // Draw colored arc zones as strokes
   const warnAngle = 180 * (warn / max);
   const badAngle = 180 * (bad / max);
-  const strokeWidth = 8;
+  const strokeWidth = 13;
   const arcRadius = radius - strokeWidth / 2;
   
   const colors = [
@@ -161,7 +161,6 @@ function getMockSensorPayload() {
       humidity: Number(wave(42, 6, 28).toFixed(1)),
       battery_status: 0,
       battery_level: 4,
-      runtime_hours: 12,
       pc03: Math.round(wave(520, 120, 25)),
       pc05: Math.round(wave(300, 80, 23)),
       pc10: Math.round(wave(180, 60, 21)),
@@ -211,7 +210,6 @@ async function refreshSensor() {
     const batteryStatus = d.battery_status === 1 ? "Charging" : (d.battery_status === 0 ? "Battery" : "–");
     document.getElementById("battery_status").textContent = batteryStatus;
     document.getElementById("battery_level").textContent = formatValue(d.battery_level, "", 0);
-    document.getElementById("runtime_hours").textContent = formatValue(d.runtime_hours, "", 0);
     document.getElementById("pc03").textContent = formatValue(d.pc03, "", 0);
     document.getElementById("pc05").textContent = formatValue(d.pc05, "", 0);
     document.getElementById("pc10").textContent = formatValue(d.pc10, "", 0);
